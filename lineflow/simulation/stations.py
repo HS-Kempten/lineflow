@@ -31,6 +31,7 @@ class WorkerPool(StationaryObject):
         name,
         n_workers=None,
         transition_time=5,
+        skill_levels=None,
     ):
         super().__init__()
 
@@ -42,10 +43,12 @@ class WorkerPool(StationaryObject):
         self.stations = []
         self._station_names = []
         self._worker_names = [f"W{i}" for i in range(self.n_workers)]
+        self.skill_levels = skill_levels or {}
         self.workers = {
             name: Worker(
                 name=name,
-                transition_time=self.transition_time
+                transition_time=self.transition_time,
+                skill_levels=self.skill_levels.get(name, {})
             ) for name in self._worker_names
         }
 
@@ -158,6 +161,15 @@ class Station(StationaryObject):
         else:
             return 1
 
+    @property
+    def worker_skill(self):
+        if self.worker_pool is not None:
+            skills = [worker.skill_levels.get(self.name, 1.0) for worker in self.worker_assignments.values()]
+            skill_sum = np.sum(skills) + 1
+            return skill_sum
+        else:
+            return 1.0
+
     def setup_draw(self):
 
         self._rect = pygame.Rect(
@@ -185,7 +197,7 @@ class Station(StationaryObject):
         if not self.is_automatic:
             font = pygame.font.SysFont(None, 14)
             text = font.render(
-                "W=" + str(self.n_workers),
+                "W=" + str(self.worker_skill),
                 True,
                 'black',
             )
@@ -207,7 +219,7 @@ class Station(StationaryObject):
         )
 
     def get_performance_coefficient(self):
-        return compute_performance_coefficient(self.n_workers)
+        return compute_performance_coefficient(self.worker_skill)
 
     def _sample_exp_time(self, time=None, scale=None, rework_probability=0):
         """
@@ -215,8 +227,7 @@ class Station(StationaryObject):
         """
 
         coeff = self.get_performance_coefficient()
-
-        t = time*coeff + self.random.exponential(scale=scale)
+        t = time * coeff + self.random.exponential(scale=scale)
 
         rework = self.random.choice(
             [1, 2],
