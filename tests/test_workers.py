@@ -103,6 +103,32 @@ def shuffle_workers(state, env):
         return {}
 
 
+class LineWithSkilledWorkers(Line):
+
+    def __init__(self, skill_levels=None, *args, **kwargs):
+        self.skill_levels = skill_levels or {}
+        super().__init__(*args, **kwargs)
+
+    def build(self):
+
+        pool = WorkerPool(
+            name='pool',
+            n_workers=2,
+            transition_time=2,
+            skill_levels=self.skill_levels,
+        )
+
+        c1 = Source('C1', unlimited_carriers=True, position=(100, 100))
+        c2 = Process('C2', worker_pool=pool, position=(200, 100))
+        c3 = Process('C3', worker_pool=pool, position=(500, 100))
+        c4 = Sink('C4', processing_time=2, position=(600, 100))
+
+        c1.connect_to_output(c2)
+        c2.connect_to_output(c3, transition_time=10, capacity=5)
+        c3.connect_to_output(c4)
+
+
+
 class LineWithWorkers(Line):
 
     def build(self):
@@ -206,3 +232,40 @@ class TestWorkerMovement(unittest.TestCase):
             worker_assignment[worker_assignment != worker_assignment.shift(1)].values.tolist(),
             ['C2', 'C3', 'C2', 'C3']
         )
+
+
+class TestLineWithSkilledWorkers(unittest.TestCase):
+
+    def setUp(self):
+        self.base_skill_levels = {
+            'W0': {'C2': 1.0, 'C3': 1.0},
+            'W1': {'C2': 1.0, 'C3': 1.0},
+        }
+
+        self.high_skill_levels = {
+            'W0': {'C2': 4.0, 'C3': 4.0},
+            'W1': {'C2': 4.0, 'C3': 4.0},
+        }
+
+    def test_skilled_worker_speedup(self):
+
+        baseline_line = LineWithSkilledWorkers(skill_levels=self.base_skill_levels, random_state=42)
+        baseline_line.run(500)
+        df_baseline = compute_processing_times_of_parts(baseline_line, 'C3', finished_only=True)
+        baseline_mean = df_baseline.mean()['time']
+
+        skilled_line = LineWithSkilledWorkers(skill_levels=self.high_skill_levels, random_state=42)
+        skilled_line.run(500)
+        df_skilled = compute_processing_times_of_parts(skilled_line, 'C3', finished_only=True)
+        skilled_mean = df_skilled.mean()['time']
+
+        self.assertLess(skilled_mean, baseline_mean)
+        self.assertAlmostEqual(
+            baseline_mean ,
+            skilled_mean * 2.0,
+            delta=0.5
+        )
+
+
+if __name__ == '__main__':
+    unittest.main()
