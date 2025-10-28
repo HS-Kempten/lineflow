@@ -266,5 +266,3 @@ class TestLineWithSkilledWorkers(unittest.TestCase):
             delta=0.5
         )
 
-
-    unittest.main()
