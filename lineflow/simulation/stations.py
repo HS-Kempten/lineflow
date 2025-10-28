@@ -345,9 +345,9 @@ class Assembly(Station):
         buffer_in=None,
         buffer_out=None,
         buffer_component=None,
+        buffer_return=None,
         processing_time=5,
         position=None,
-        buffer_return=None,
         processing_std=None,
         NOK_part_error_time=2,
         worker_pool=None,
@@ -368,8 +368,15 @@ class Assembly(Station):
         if buffer_out is not None:
             self._connect_to_output(buffer_out)
 
+        self.buffer_component = []
+
         if buffer_component is not None:
-            self.buffer_component = buffer_component.connect_to_output(self)
+
+            if isinstance(buffer_component, Buffer):
+                buffer_component = [buffer_component]
+
+            for buffer in buffer_component:
+                self._connect_to_component_input(buffer)
 
         if buffer_return is not None:
             self.buffer_return = buffer_return.connect_to_input(self)
@@ -394,13 +401,16 @@ class Assembly(Station):
 
     def connect_to_component_input(self, station, *args, **kwargs):
         buffer = Buffer(name=f"Buffer_{station.name}_to_{self.name}", *args, **kwargs)
-        self.buffer_component = buffer.connect_to_output(self)
+        self._connect_to_component_input(buffer)
         station._connect_to_output(buffer)
 
     def connect_to_component_return(self, station, *args, **kwargs):
         buffer = Buffer(name=f"Buffer_{self.name}_to_{station.name}", *args, **kwargs)
         self.buffer_return = buffer.connect_to_input(self)
         station._connect_to_input(buffer)
+
+    def _connect_to_component_input(self, buffer):
+        self.buffer_component.append(buffer.connect_to_output(self))
 
     def _has_invalid_components_on_carrier(self, carrier):
         """
@@ -429,41 +439,50 @@ class Assembly(Station):
                 # Update current_carrier and count parts of carrier
                 self.state['carrier'].update(carrier.name)
 
-                # Run until carrier with components each having a valid assembly condition is
-                # received
-                while True:
-                    # Wait to get component
-                    carrier_component = yield self.env.process(self.buffer_component())
-                    self.state['carrier_component'].update(carrier_component.name)
 
-                    # Check component
-                    if self._has_invalid_components_on_carrier(carrier_component):
-                        yield self.env.process(self.set_to_error())
-                        yield self.env.timeout(self.NOK_part_error_time)
-                        self.state['n_scrap_parts'].increment()
+                carrier_components = []
+                for buffer_component in self.buffer_component:
+                    # Run until carrier with components each having a valid assembly condition is
+                    # received
+                    while True:
+                        # Wait to get component
+                        carrier_component = yield self.env.process(buffer_component())
+                        self.state['carrier_component'].update(carrier_component.name)
 
-                        # send carrier back
-                        if hasattr(self, 'buffer_return'):
-                            carrier_component.parts.clear()
-                            yield self.env.process(self.buffer_return(carrier_component))
-                        yield self.env.process(self.set_to_waiting())
-                        continue
+                        # Check component
+                        if self._has_invalid_components_on_carrier(carrier_component):
+                            yield self.env.process(self.set_to_error())
+                            yield self.env.timeout(self.NOK_part_error_time)
+                            self.state['n_scrap_parts'].increment()
 
-                    else:
-                        # All components are valid, proceed with assembly
-                        break
+                            # send carrier back
+                            if hasattr(self, 'buffer_return'):
+                                carrier_component.parts.clear()
+                                yield self.env.process(self.buffer_return(carrier_component))
+                            yield self.env.process(self.set_to_waiting())
+                            continue
+
+                        else:
+                            # All components are valid, proceed with assembly
+                            carrier_components.append(carrier_component)
+                            break
 
                 # Process components
                 yield self.env.process(self.set_to_work())
+
+                add_time = sum(
+                    [c.get_additional_processing_time(self.name) for c in carrier_components]
+                )
                 processing_time = self._sample_exp_time(
-                    time=self.processing_time + carrier.get_additional_processing_time(self.name),
+                    time=self.processing_time + add_time,
                     scale=self.processing_std,
                 )
                 yield self.env.timeout(processing_time)
                 self.state['processing_time'].update(processing_time)
 
-                for component in carrier_component:
-                    carrier.assemble(component)
+                for carrier_component in carrier_components:
+                    for component in carrier_component:
+                        carrier.assemble(component)
 
                 # Release workers
                 self.release_workers()

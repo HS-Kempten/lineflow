@@ -122,6 +122,53 @@ class SimpleLineWithValidProcessingCondition(Line):
         )
 
 
+
+class AssemblyWithMultipleComponentBuffers(Line):
+
+    def build(self):
+
+        source_main = Source(
+            'Source',
+            processing_time=2,
+            processing_std=0,
+            unlimited_carriers=True,
+            carrier_capacity=1+3,
+            position=(100, 100),
+        )
+
+        assembly = Assembly(
+            'Assembly',
+            position=(300, 200),
+        )
+
+
+        component_sources = [
+            Source(
+                f'Component Source_{i}',
+                processing_time=2,
+                processing_std=0,
+                position=(250+i*50, 400),
+                unlimited_carriers=True,
+                carrier_capacity=1,
+            ) for i in range(3)
+        ]
+
+
+        for source in component_sources:
+            assembly.connect_to_component_input(source)
+
+        sink = Sink(
+            'Sink',
+            processing_time=1,
+            processing_std=0,
+            position=(600, 200),
+        )
+        assembly.connect_to_input(source_main)
+        assembly.connect_to_output(sink)
+
+
+
+
 class SimpleLineWithSendingBack(Line):
 
     def build(self):
@@ -235,3 +282,12 @@ class TestAssembly(unittest.TestCase):
 
         # Should have multiple carrier_components
         self.assertGreater(len(self.df["carrier_component"].unique()), 2)
+
+
+class TestMultilpleComponentBuffers(unittest.TestCase):
+
+
+    def test_run(self):
+
+        line = AssemblyWithMultipleComponentBuffers()
+        line.run(500, visualize=False)
