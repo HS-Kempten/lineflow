@@ -263,10 +263,10 @@ class TestMultilpleComponentBuffers(unittest.TestCase):
                 unlimited_carriers=True,
                 position=(220, 400),
                 processing_time=7,
-                nok_probabability=0.2,
+                nok_probability=0.2,
                 carrier_specs={
-                    'T1': {'Part1': {'A': {"assembly_condition": 5}}},
-                    'T2': {'Part1': {'A': {"assembly_condition": 10}}}
+                    'T1': {'Part1': {'A': {"extra_processing_time": 1}}},
+                    'T2': {'Part1': {'A': {"extra_processing_time": 4}}}
                 },
             ) 
     
@@ -274,10 +274,10 @@ class TestMultilpleComponentBuffers(unittest.TestCase):
                 unlimited_carriers=True,
                 position=(300, 400),
                 processing_time=2,
-                nok_probabability=0.1,
+                nok_probability=0.1,
                 carrier_specs={
-                    'T1': {'Part2': {'A': {"assembly_condition": 8}}},
-                    'T2': {'Part2': {'A': {"assembly_condition": 12}}}
+                    'T1': {'Part2': {'A': {"extra_processing_time": 4}}},
+                    'T2': {'Part2': {'A': {"extra_processing_time": 2}}}
                 },
             ) 
     
@@ -286,7 +286,7 @@ class TestMultilpleComponentBuffers(unittest.TestCase):
                 processing_time=5,
                 unlimited_carriers=True,
                 carrier_specs={
-                    'T1': {'Part3': {'A': {"assembly_condition": 5}}},
+                    'T1': {'Part3': {'A': {"extra_processing_time": 3}}},
                 },
             ) 
     
@@ -305,4 +305,6 @@ class TestMultilpleComponentBuffers(unittest.TestCase):
     
     def test_run(self):
         line = TestMultilpleComponentBuffers.AssemblyWithMultipleComponentBuffers()
-        line.run(200, visualize=False)
+        line.run(400, visualize=False)
+        df = line.get_observations('A')
+        self.assertGreaterEqual(df.n_scrap_parts.max(), 1)
