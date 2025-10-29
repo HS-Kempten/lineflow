@@ -54,9 +54,10 @@ class MovableObject(object):
 
 
 class Worker(object):
-    def __init__(self, name, transition_time=5):
+    def __init__(self, name, transition_time=5, skill_levels=None):
         self.name = name
         self.transition_time = transition_time
+        self.skill_levels = skill_levels
 
     def register(self, env):
         self.env = env
@@ -68,6 +69,9 @@ class Worker(object):
 
     def request(self):
         return self._working.request()
+    
+    def get_skill_level(self, station_name):
+        return self.skill_levels.get(station_name, 1.0)
 
     def assign(self, station):
         """
