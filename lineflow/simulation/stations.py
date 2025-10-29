@@ -660,7 +660,7 @@ class Source(Station):
         carrier_capacity=np.inf,
         carrier_specs=None,
         carrier_min_creation=1,
-        nok_probabability=0,
+        nok_probabability: float=0.0,
         carrier_max_creation=None,
     ):
         super().__init__(
@@ -698,6 +698,7 @@ class Source(Station):
 
         self.init_waiting_time = waiting_time
         self.nok_probability = nok_probabability
+        assert 0 <= self.nok_probability <= 1, "nok_probability must be between 0 and 1"
 
     def init_state(self):
 
