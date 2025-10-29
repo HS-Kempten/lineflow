@@ -418,7 +418,7 @@ class Assembly(Station):
         `True` is returned. Otherwise, `False` is returned.
         """
         for component in carrier:
-            if not component.is_valid_for_assembly(self.name):
+            if not component.is_valid_for_assembly(self.name) or component.is_nok(self.name):
                 return True
         return False
 

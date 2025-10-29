@@ -129,6 +129,12 @@ class Part(MovableObject):
         else:
             return True
 
+    def is_nok(self, station_name):
+        """
+        Check whether the part is marked as 'nok' for the given station.
+        """
+        return self.specs.get(station_name, {}).get("state", "ok") == "nok"
+
     def create(self, position):
         if not isinstance(position, pygame.Vector2):
             raise ValueError('Expect pygame vector as position')

@@ -14,6 +14,11 @@ class TestParts(unittest.TestCase):
     def setUp(self):
         self.env = simpy.Environment()
 
+        self.specs = {
+            "A1": {'assembly_condition': 5},
+            "P1": {'extra_processing_time': 10, 'state': 'nok'},
+        }
+
     def test_init(self):
 
         part = Part(env=self.env, name='C1-1')
@@ -30,7 +35,7 @@ class TestParts(unittest.TestCase):
         with self.assertRaises(ValueError):
             part.create(position=(1, 2))
 
-    def test_specs(self):
+    def test_dict_like_access(self):
         specs = {"assembly_condition": 5}
         part = Part(env=self.env, name="env", specs=specs)
         self.assertEqual(part["assembly_condition"], 5)
@@ -38,6 +43,18 @@ class TestParts(unittest.TestCase):
     def test_specs_with_problematic_values(self):
         specs = {"create": 5}
         part = Part(env=self.env, name="env", specs=specs)
+
+    def test_is_valid_for_assembly(self):
+        part = Part(env=self.env, name="env", specs=self.specs)
+
+        self.assertTrue(part.is_valid_for_assembly("A1"))
+
+    def test_is_nok(self):
+        part = Part(env=self.env, name="env", specs=self.specs)
+
+        self.assertFalse(part.is_nok("A1"))
+        self.assertFalse(part.is_nok("P2"))
+        self.assertTrue(part.is_nok("P1"))
 
 
 class TestCarrier(unittest.TestCase):

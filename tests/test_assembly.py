@@ -286,8 +286,6 @@ class TestAssembly(unittest.TestCase):
 
 class TestMultilpleComponentBuffers(unittest.TestCase):
 
-
     def test_run(self):
-
         line = AssemblyWithMultipleComponentBuffers()
         line.run(500, visualize=False)
