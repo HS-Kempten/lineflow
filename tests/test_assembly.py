@@ -123,52 +123,6 @@ class SimpleLineWithValidProcessingCondition(Line):
 
 
 
-class AssemblyWithMultipleComponentBuffers(Line):
-
-    def build(self):
-
-        source_main = Source(
-            'Source',
-            processing_time=2,
-            processing_std=0,
-            unlimited_carriers=True,
-            carrier_capacity=1+3,
-            position=(100, 100),
-        )
-
-        assembly = Assembly(
-            'Assembly',
-            position=(300, 200),
-        )
-
-
-        component_sources = [
-            Source(
-                f'Component Source_{i}',
-                processing_time=2,
-                processing_std=0,
-                position=(250+i*50, 400),
-                unlimited_carriers=True,
-                carrier_capacity=1,
-            ) for i in range(3)
-        ]
-
-
-        for source in component_sources:
-            assembly.connect_to_component_input(source)
-
-        sink = Sink(
-            'Sink',
-            processing_time=1,
-            processing_std=0,
-            position=(600, 200),
-        )
-        assembly.connect_to_input(source_main)
-        assembly.connect_to_output(sink)
-
-
-
-
 class SimpleLineWithSendingBack(Line):
 
     def build(self):
@@ -286,6 +240,69 @@ class TestAssembly(unittest.TestCase):
 
 class TestMultilpleComponentBuffers(unittest.TestCase):
 
+    class AssemblyWithMultipleComponentBuffers(Line):
+    
+        def build(self):
+    
+            source_main = Source(
+                'Source',
+                processing_time=2,
+                processing_std=0,
+                unlimited_carriers=True,
+                carrier_capacity=1+3,
+                position=(100, 200),
+            )
+    
+            assembly = Assembly(
+                'A',
+                position=(300, 200),
+            )
+    
+    
+            sc_1 = Source('SC1',
+                unlimited_carriers=True,
+                position=(220, 400),
+                processing_time=7,
+                nok_probabability=0.2,
+                carrier_specs={
+                    'T1': {'Part1': {'A': {"assembly_condition": 5}}},
+                    'T2': {'Part1': {'A': {"assembly_condition": 10}}}
+                },
+            ) 
+    
+            sc_2 = Source('SC2',
+                unlimited_carriers=True,
+                position=(300, 400),
+                processing_time=2,
+                nok_probabability=0.1,
+                carrier_specs={
+                    'T1': {'Part2': {'A': {"assembly_condition": 8}}},
+                    'T2': {'Part2': {'A': {"assembly_condition": 12}}}
+                },
+            ) 
+    
+            sc_3 = Source('SC3',
+                position=(380, 400),
+                processing_time=5,
+                unlimited_carriers=True,
+                carrier_specs={
+                    'T1': {'Part3': {'A': {"assembly_condition": 5}}},
+                },
+            ) 
+    
+            assembly.connect_to_component_input(sc_1, capacity=4)
+            assembly.connect_to_component_input(sc_2, capacity=4)
+            assembly.connect_to_component_input(sc_3, capacity=4)
+    
+            sink = Sink(
+                'Sink',
+                processing_time=1,
+                processing_std=0,
+                position=(600, 200),
+            )
+            assembly.connect_to_input(source_main)
+            assembly.connect_to_output(sink)
+    
     def test_run(self):
-        line = AssemblyWithMultipleComponentBuffers()
-        line.run(500, visualize=False)
+        line = TestMultilpleComponentBuffers.AssemblyWithMultipleComponentBuffers()
+        line.run(200, visualize=False)

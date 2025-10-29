@@ -36,11 +36,19 @@ If you use our work in your research, please consider citing us with
 ```
 
 ## Authors
+`LineFlow` was originally developed at the [University of Applied Sciences
+Kempten](http://hs-kempten.de/ims) by:
 
-- [Kai Müller](https://mueller-kai.github.io) (University of Applied Sciences, Kempten)
-- [Tobias Windisch](https://www.tobias-windisch.de) (University of Applied Sciences, Kempten)
-- Martin Wenzel (University of Applied Sciences, Kempten)
+- [Kai Müller](https://mueller-kai.github.io) 
+- [Tobias Windisch](https://www.tobias-windisch.de)
+- [Martin Wenzel](https://www.hs-kempten.de/personen/martin-wenzel) 
+
+`LineFlow` gratefully acknowledges contributions from:
+
+- Kilian Führer
+- [Andreas Fritz](https://www.hs-kempten.de/personen/andreas-fritz) 
+
 
 ## Funding
 
-The research behind LineFlow is funded by the Bavarian state ministry of research. Learn more [here](https://kefis.fza.hs-kempten.de/de/forschungsprojekt/599-lineflow).
+The research behind `LineFlow` is funded by the Bavarian state ministry of research. Learn more [here](https://kefis.fza.hs-kempten.de/de/forschungsprojekt/599-lineflow).

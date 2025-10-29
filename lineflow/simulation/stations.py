@@ -193,6 +193,12 @@ class Station(StationaryObject):
     def _draw_info(self, screen):
         pass
 
+    def _is_nok_part(self, component):
+        return self.random.choice(
+            [True, False], 
+            p=[component.nok_probability, 1 - component.nok_probability],
+        )
+
     def _draw_n_workers(self, screen):
         if not self.is_automatic:
             font = pygame.font.SysFont(None, 14)
@@ -429,7 +435,12 @@ class Assembly(Station):
         `True` is returned. Otherwise, `False` is returned.
         """
         for component in carrier:
-            if not component.is_valid_for_assembly(self.name) or component.is_nok(self.name):
+            # Check assembly condition
+            if not component.is_valid_for_assembly(self.name):
+                return True
+
+            # Check if part is self._is_nok_part(component):
+            if self._is_nok_part(component):
                 return True
         return False
 
@@ -627,6 +638,8 @@ class Source(Station):
         unlimited_carriers (bool): If source has the ability to create unlimited carriers
         carrier_capacity (int): Defines how many parts can be assembled on a carrier. If set to
             default (infinity) or > 15, carrier will be visualized with one part.
+        nok_probability (float): Between 0 and 1, probability of a part on the carrier being labled
+            as nok
         carrier_min_creation (int): Minimum number of carriers of same spec created subsequentially
         carrier_max_creation (int): Maximum number of carriers of same spec created subsequentially
 
@@ -647,6 +660,7 @@ class Source(Station):
         carrier_capacity=np.inf,
         carrier_specs=None,
         carrier_min_creation=1,
+        nok_probabability=0,
         carrier_max_creation=None,
     ):
         super().__init__(
@@ -683,6 +697,7 @@ class Source(Station):
         self._carrier_counter = 0
 
         self.init_waiting_time = waiting_time
+        self.nok_probability = nok_probabability
 
     def init_state(self):
 
@@ -756,9 +771,11 @@ class Source(Station):
                 env=self.env,
                 name=f"{carrier.name}_{part_name}_{part_id}",
                 specs=part_spec,
+                nok_probability=self.nok_probability,
             )
             part.create(self.position)
             parts.append(part)
+
         return parts
 
     def assemble_parts_on_carrier(self, carrier, parts):

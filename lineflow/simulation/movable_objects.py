@@ -118,8 +118,9 @@ class Worker(object):
 
 
 class Part(MovableObject):
-    def __init__(self, env, name, specs=None, color='Orange'):
+    def __init__(self, env, name, specs=None, color='Orange', nok_probability=0.0):
         super(Part, self).__init__(env, name, specs=specs)
+        self.nok_probability = nok_probability
         self._color = color
 
     def is_valid_for_assembly(self, station_name):
@@ -132,12 +133,6 @@ class Part(MovableObject):
             return (self.env.now - self["creation_time"]) < self.specs[station_name]["assembly_condition"]
         else:
             return True
-
-    def is_nok(self, station_name):
-        """
-        Check whether the part is marked as 'nok' for the given station.
-        """
-        return self.specs.get(station_name, {}).get("state", "ok") == "nok"
 
     def create(self, position):
         if not isinstance(position, pygame.Vector2):
@@ -230,6 +225,3 @@ class Carrier(MovableObject):
              total_time += processing_time
 
          return total_time
-
-
-

@@ -51,10 +51,7 @@ class TestParts(unittest.TestCase):
 
     def test_is_nok(self):
         part = Part(env=self.env, name="env", specs=self.specs)
-
-        self.assertFalse(part.is_nok("A1"))
-        self.assertFalse(part.is_nok("P2"))
-        self.assertTrue(part.is_nok("P1"))
+        self.assertEqual(part.nok_probability, 0.0)
 
 
 class TestCarrier(unittest.TestCase):
@@ -112,4 +109,3 @@ class TestCarrier(unittest.TestCase):
         part.create(position=pygame.Vector2(200, 100))
         carrier = Carrier(env=self.env, name='WPC1')
         carrier.assemble(part)
-
