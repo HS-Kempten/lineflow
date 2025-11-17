@@ -202,7 +202,6 @@ class Line:
         font = pygame.font.SysFont(None, 20)
         actions = font.render(f'{actions}', True, 'black')
         screen.blit(actions, actions.get_rect(center=(500, 30)))
-        pygame.display.flip()
 
     def _draw_stations(self, screen):
         self._draw_objects_of_type(screen, Station)
@@ -221,8 +220,7 @@ class Line:
         y = []
         for o in self._objects.values():
             o.setup_draw()
-            if isinstance(o, Station):
-                assert hasattr(o, "position"), f"Please provide position for {Station.name}"
+            if hasattr(o, "position"):
                 x.append(o.position[0])
                 y.append(o.position[1])
 
