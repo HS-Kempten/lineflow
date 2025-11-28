@@ -1,3 +1,4 @@
+import sys
 import simpy
 import pygame
 import numpy as np
@@ -178,6 +179,7 @@ class Line:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 teardown_draw()
+                sys.exit()
 
         screen.fill('white')
 
