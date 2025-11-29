@@ -47,6 +47,7 @@ Kempten](http://hs-kempten.de/ims) by:
 
 - Kilian Führer
 - [Andreas Fritz](https://www.hs-kempten.de/personen/andreas-fritz) 
+- Marie Kraus
 
 
 ## Funding
