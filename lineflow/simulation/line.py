@@ -178,7 +178,7 @@ class Line:
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                teardown_draw()
+                self.teardown_draw()
                 sys.exit()
 
         screen.fill('white')
