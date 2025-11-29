@@ -5,6 +5,7 @@ from lineflow.simulation.stations import Source #noqa
 from lineflow.simulation.stations import Sink #noqa
 from lineflow.simulation.stations import Switch #noqa
 from lineflow.simulation.stations import Process #noqa
+from lineflow.simulation.stations import SequentialProcess #noqa
 from lineflow.simulation.stations import Magazine #noqa
 from lineflow.simulation.stations import WorkerPool #noqa
 from lineflow.simulation.line import Line #noqa

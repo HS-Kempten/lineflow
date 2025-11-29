@@ -57,6 +57,9 @@ class Worker(object):
     def __init__(self, name, transition_time=5, skill_levels=None):
         self.name = name
         self.transition_time = transition_time
+
+        if skill_levels is None:
+            skill_levels = {}
         self.skill_levels = skill_levels
 
     def register(self, env):
@@ -143,22 +146,21 @@ class Part(MovableObject):
         _part_rect = pygame.Rect(x, y, width, height)
         pygame.draw.rect(screen, self._color, _part_rect, border_radius=1)
 
+    def get_processing_time(self, station):
+        return self.specs.get(station, {}).get("extra_processing_time", 0)
+
 
 class Carrier(MovableObject):
 
-    def __init__(self, env, name, color='Black', width=30, height=10, capacity=np.inf, part_specs=None):
+    def __init__(self, env, name, color='Black', width=30, height=10, capacity=np.inf):
         super(Carrier, self).__init__(env, name, specs=None)
         self.capacity = capacity
         self._color = color
         self._width = width
         self._height = height
 
-        if part_specs is None:
-            part_specs = {}
-        self.part_specs = part_specs.copy()
-
         self._width_part = 0.8*self._width
-        if capacity < 15:
+        if capacity < np.inf:
             self._width_part = self._width_part / self.capacity
 
         self._height_part = 0.7*self._height
@@ -216,6 +218,9 @@ class Carrier(MovableObject):
     def __iter__(self):
         for part in self.parts.values():
             yield part
+
+    def get_parts_for_station(self, station):
+        return [p for p in self if station in p.specs]
 
     def get_additional_processing_time(self, station):
          total_time = 0

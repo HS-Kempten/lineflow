@@ -223,8 +223,8 @@ class TestAssembly(unittest.TestCase):
         # 5 (processing) + 1 (put) + 1 (get next one)
         self.assertEqual(
             self.df_valid[
-                (self.df_valid['carrier'] == 'Magazine Source_carrier_2') &
-                (self.df_valid['carrier_component'] == 'Magazine Component Source_carrier_2')
+                (self.df_valid['carrier'] == 'Magazine Source_2') &
+                (self.df_valid['carrier_component'] == 'Magazine Component Source_2')
             ].iloc[0]["T_start"],
             26
         )

@@ -174,7 +174,7 @@ class TestMagazine(unittest.TestCase):
         # Afterwards no more carriers
         self.assertListEqual(df.iloc[6:].carrier.unique().tolist(), [None])
 
-    def test_carrier_inseration_by_policy(self):
+    def test_carrier_insertion_by_policy(self):
 
         self.removal_line = SimplestLine()
         self.removal_line.build()
@@ -195,9 +195,9 @@ class TestMagazine(unittest.TestCase):
         self.removal_line.run(simulation_end=50, agent=policy)
         df = self.removal_line.get_observations("Magazine")
         # Magazine produces carrier 'Magazine_cr_1'
-        self.assertEqual(df.iloc[2].carrier, 'Magazine_carrier_1')
+        self.assertEqual(df.iloc[2].carrier, 'Magazine_1')
         # Afterwards all carriers are removed exept one (the tenth)
-        self.assertEqual(df.iloc[5].carrier, 'Magazine_carrier_10')
+        self.assertEqual(df.iloc[5].carrier, 'Magazine_10')
 
     def test_carrier_specs(self):
         source = Source(
@@ -231,7 +231,7 @@ class TestMagazine(unittest.TestCase):
 
         self.assertEqual(carrier.name, 'TestSource_Carrier1_1')
 
-        parts = source.create_parts(carrier)
+        parts = source.create_parts(carrier, source.carrier_specs['Carrier1'])
         self.assertEqual(len(parts), 2)
 
         self.assertDictEqual(
