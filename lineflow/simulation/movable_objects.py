@@ -149,6 +149,12 @@ class Part(MovableObject):
     def get_processing_time(self, station):
         return self.specs.get(station, {}).get("extra_processing_time", 0)
 
+    def get_error_probability(self, station):
+        return self.specs.get(station, {}).get("error_probability", 0.0)
+
+    def get_error_time(self, station):
+        return self.specs.get(station, {}).get("error_time", 0)
+
 
 class Carrier(MovableObject):
 

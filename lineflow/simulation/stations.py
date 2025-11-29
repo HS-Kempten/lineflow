@@ -543,7 +543,6 @@ class Process(Station):
         processing_std=None,
         rework_probability=0,
         worker_pool=None,
-
     ):
 
         super().__init__(
@@ -605,6 +604,83 @@ class Process(Station):
 
                 # Wait to place carrier to buffer_out
                 yield self.env.process(self.set_to_waiting())
+                yield self.env.process(self.buffer_out(carrier))
+                self.state['carrier'].update(None)
+
+            else:
+                yield self.turn_off()
+
+
+class SequentialProcess(Process):
+    """
+    SequentialProcess stations take a carrier as input, process each part on the carrier
+    """
+    def __init__(
+        self,
+        name,
+        buffer_in=None,
+        buffer_out=None,
+        position=None,
+        worker_pool=None,
+        processing_time=0,
+        processing_std=0.1,
+    ):
+
+        super().__init__(
+            name=name,
+            buffer_in=buffer_in,
+            buffer_out=buffer_out,
+            processing_time=processing_time,
+            position=position,
+            processing_std=processing_std,
+            rework_probability=0,
+            worker_pool=worker_pool,
+        )
+
+    def run(self):
+
+        while True:
+            if self.is_on():
+                # Wait to get part from buffer_in
+                yield self.env.process(self.set_to_waiting())
+                carrier = yield self.env.process(self.buffer_in())
+                self.state['carrier'].update(carrier.name)
+
+                total_processing_time = 0
+
+                for part in carrier.get_parts_for_station(self.name):
+
+                    yield self.env.process(self.request_workers())
+
+                    error_proba = part.get_error_probability(self.name)
+
+                    if self.random.uniform(0, 1) < error_proba:
+                        yield self.env.process(self.set_to_error())
+                        # Release workers
+                        self.release_workers()
+                        error_time = part.get_error_time(self.name)
+                        yield self.env.timeout(error_time)
+                        total_processing_time += error_time
+                        yield self.env.process(self.set_to_waiting())
+                        yield self.env.process(self.request_workers())
+
+                    yield self.env.process(self.set_to_work())
+                    self.state['n_workers'].update(self.n_workers)
+
+                    processing_time = self._sample_exp_time(
+                        time=self.processing_time+part.get_processing_time(self.name),
+                        scale=self.processing_std,
+                        rework_probability=self.rework_probability,
+                    )
+                    yield self.env.timeout(processing_time)
+                    total_processing_time += processing_time
+                    # Release workers
+                    self.release_workers()
+                    yield self.env.process(self.set_to_waiting())
+
+                self.state['processing_time'].update(total_processing_time)
+
+                # Wait to place carrier to buffer_out
                 yield self.env.process(self.buffer_out(carrier))
                 self.state['carrier'].update(None)
 
@@ -738,14 +814,6 @@ class Source(Station):
 
     def create_carrier(self):
 
-        if self._carrier_counter == 0:
-            carrier_spec = self.random.choice(list(self.carrier_specs.keys()))
-            self.state['carrier_spec'].update(carrier_spec)
-            self._carrier_counter = self.random.randint(
-                self.carrier_min_creation, 
-                self.carrier_max_creation + 1,
-            )
-
         carrier_spec = self.state['carrier_spec'].to_str()
 
         name = f'{self.name}_{carrier_spec}_{self.carrier_id}'
@@ -753,21 +821,33 @@ class Source(Station):
             self.env, 
             name=name, 
             capacity=self.carrier_capacity, 
-            part_specs=self.carrier_specs[carrier_spec],
         )
         self.carrier_id += 1
-        self._carrier_counter -= 1
 
         return carrier
 
-    def create_parts(self, carrier):
+    def get_current_carrier_spec(self):
+        if self._carrier_counter == 0:
+            carrier_spec = self.random.choice(list(self.carrier_specs.keys()))
+            self.state['carrier_spec'].update(carrier_spec)
+            self._carrier_counter = self.random.randint(
+                self.carrier_min_creation, 
+                self.carrier_max_creation + 1,
+            )
+        self.carrier_id += 1
+        self._carrier_counter -= 1
+
+        return self.carrier_specs[self.state['carrier_spec'].to_str()].copy()
+
+
+    def create_parts(self, carrier, carrier_spec):
         """
         Creates the parts based on the part_specs attribute
         For each dict in the part_specs list one part is created
         """
 
         parts = []
-        for part_id, (part_name, part_spec) in enumerate(carrier.part_specs.items()):
+        for part_id, (part_name, part_spec) in enumerate(carrier_spec.items()):
             part = Part(
                 env=self.env,
                 name=f"{carrier.name}_{part_name}_{part_id}",
@@ -786,9 +866,9 @@ class Source(Station):
         for part in parts:
             carrier.assemble(part)
 
-    def assemble_carrier(self, carrier):
+    def assemble_carrier(self, carrier, carrier_spec):
 
-        parts = self.create_parts(carrier)
+        parts = self.create_parts(carrier, carrier_spec)
         self.state['part'].update(parts[0].name)
 
         processing_time = self._sample_exp_time(
@@ -822,8 +902,10 @@ class Source(Station):
                 else:
                     carrier = yield self.env.process(self.buffer_in())
 
+                carrier_spec = self.get_current_carrier_spec()
+
                 yield self.env.process(self.set_to_work())
-                carrier = yield self.env.process(self.assemble_carrier(carrier))
+                carrier = yield self.env.process(self.assemble_carrier(carrier, carrier_spec))
 
                 yield self.env.process(self.set_to_waiting())
                 yield self.env.process(self.buffer_out(carrier))
@@ -1104,7 +1186,6 @@ class Magazine(Station):
         actionable_magazine=True,
         carrier_getting_time=2,
         carriers_in_magazine=0,
-        carrier_specs=None,
         carrier_min_creation=1,
         carrier_max_creation=None,
     ):
@@ -1122,10 +1203,6 @@ class Magazine(Station):
         self.actionable_magazine = actionable_magazine
         self.init_carriers_in_magazine = carriers_in_magazine
         self.carrier_getting_time = carrier_getting_time
-
-        if carrier_specs is None:
-            carrier_specs = {"carrier": {"part": {}}}
-        self.carrier_specs = carrier_specs
 
         self.unlimited_carriers = unlimited_carriers
         self.carrier_capacity = carrier_capacity
@@ -1168,18 +1245,16 @@ class Magazine(Station):
 
     def create_carrier(self):
         if self._carrier_counter == 0:
-            self._current_carrier_spec = self.random.choice(list(self.carrier_specs.keys()))
             self._carrier_counter = self.random.randint(
                 self.carrier_min_creation, 
                 self.carrier_max_creation + 1,
             )
 
-        name = f'{self.name}_{self._current_carrier_spec}_{self.carrier_id}'
+        name = f'{self.name}_{self.carrier_id}'
         carrier = Carrier(
             self.env, 
             name=name, 
             capacity=self.carrier_capacity, 
-            part_specs=self.carrier_specs[self._current_carrier_spec],
         )
         self.carrier_id += 1
         self._carrier_counter -= 1
