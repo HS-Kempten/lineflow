@@ -638,6 +638,7 @@ class SequentialProcess(Process):
         )
 
         self.processing_std = processing_std
+        assert self.processing_std >= 0 and self.processing_std <= 1
 
     def run(self):
 
