@@ -637,6 +637,8 @@ class SequentialProcess(Process):
             worker_pool=worker_pool,
         )
 
+        self.processing_std = processing_std
+
     def run(self):
 
         while True:
