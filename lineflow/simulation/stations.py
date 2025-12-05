@@ -624,6 +624,7 @@ class SequentialProcess(Process):
         worker_pool=None,
         processing_time=0,
         processing_std=0.1,
+        error_std=0,
     ):
 
         super().__init__(
@@ -638,7 +639,9 @@ class SequentialProcess(Process):
         )
 
         self.processing_std = processing_std
+        self.error_std = error_std
         assert self.processing_std >= 0 and self.processing_std <= 1
+        assert self.error_std >= 0 and self.error_std <= 1
 
     def run(self):
 
@@ -661,7 +664,12 @@ class SequentialProcess(Process):
                         yield self.env.process(self.set_to_error())
                         # Release workers
                         self.release_workers()
-                        error_time = part.get_error_time(self.name)
+                        error_time = self._sample_exp_time(
+                            time=part.get_error_time(self.name),
+                            scale=self.error_std,
+                            rework_probability=self.rework_probability,
+                        )
+
                         yield self.env.timeout(error_time)
                         total_processing_time += error_time
                         yield self.env.process(self.set_to_waiting())
