@@ -657,6 +657,7 @@ class SequentialProcess(Process):
                 for part in carrier.get_parts_for_station(self.name):
 
                     yield self.env.process(self.request_workers())
+                    self.state['n_workers'].update(self.n_workers)
 
                     error_proba = part.get_error_probability(self.name)
 
@@ -664,6 +665,7 @@ class SequentialProcess(Process):
                         yield self.env.process(self.set_to_error())
                         # Release workers
                         self.release_workers()
+                        self.state['n_workers'].update(self.n_workers)
                         error_time = self._sample_exp_time(
                             time=part.get_error_time(self.name),
                             scale=self.error_std,
@@ -674,9 +676,9 @@ class SequentialProcess(Process):
                         total_processing_time += error_time
                         yield self.env.process(self.set_to_waiting())
                         yield self.env.process(self.request_workers())
+                        self.state['n_workers'].update(self.n_workers)
 
                     yield self.env.process(self.set_to_work())
-                    self.state['n_workers'].update(self.n_workers)
 
                     processing_time = self._sample_exp_time(
                         time=self.processing_time+part.get_processing_time(self.name),
