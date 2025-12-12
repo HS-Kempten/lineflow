@@ -12,6 +12,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
+from lineflow.simulation.visualization import Viewpoint
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,7 @@ class Line:
                 x.append(o.position[0])
                 y.append(o.position[1])
 
-        return pygame.display.set_mode((max(x) + 100, max(y) + 100))
+        return pygame.display.set_mode(flags=pygame.SCALED), Viewpoint(size=(max(x) + 100, max(y) + 100))
 
     def teardown_draw(self):
         pygame.quit()
