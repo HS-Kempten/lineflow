@@ -175,7 +175,7 @@ class Line:
         for o in self._objects.values():
             o.register(self.env)
 
-    def _draw(self, screen, actions=None):
+    def _draw(self, screen, paper, actions=None):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -191,15 +191,14 @@ class Line:
             f'#Parts={self.get_n_parts_produced()}', True, 'black'
         )
 
+        # Draw objects, first connectors, then stations
+        self._draw_connectors(paper)
+        self._draw_stations(paper)
+        if actions:
+            self._draw_actions(paper, actions)
+
         screen.blit(time, time.get_rect(center=(30, 30)))
         screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
-
-        # Draw objects, first connectors, then stations
-        self._draw_connectors(screen)
-        self._draw_stations(screen)
-        if actions:
-            self._draw_actions(screen, actions)
-        pygame.display.flip()
 
     def _draw_actions(self, screen, actions):
         font = pygame.font.SysFont(None, 20)
@@ -226,8 +225,7 @@ class Line:
             if hasattr(o, "position"):
                 x.append(o.position[0])
                 y.append(o.position[1])
-
-        return pygame.display.set_mode(flags=pygame.SCALED), Viewpoint(size=(max(x) + 100, max(y) + 100))
+        return (max(x)+100,max(y)+100)
 
     def teardown_draw(self):
         pygame.quit()
@@ -290,7 +288,9 @@ class Line:
 
         if visualize:
             # Stations first, then connectors
-            screen = self.setup_draw()
+            screen = pygame.display.set_mode((1280, 720))
+            Viewpoint1 = Viewpoint(size=self.setup_draw())
+
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:
@@ -318,10 +318,18 @@ class Line:
                 self.apply(actions)
 
             if visualize:
+
+                Viewpoint1.check_view_update()
+                Viewpoint1.clear_paper()
+
                 if actions is not None:
-                    self._draw(screen, actions)
+                    self._draw(screen, Viewpoint1.paper, actions)
                 else:
-                    self._draw(screen)
+                    self._draw(screen, Viewpoint1.paper)
+
+                Viewpoint1._draw(screen)
+
+                pygame.display.flip()
 
         if capture_screen and visualize:
             pygame.image.save(screen, f"{self.name}.png")

@@ -4,8 +4,8 @@ class Viewpoint:
 
     def __init__(
         self,
-        position=None,
         size=None,
+        position=None,
         zoom=1,
     ):
 
