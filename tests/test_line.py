@@ -157,7 +157,7 @@ class TestAssemblyLine(unittest.TestCase):
         self.line.build()  # Make sure the line is built before testing
 
         # Run the setup_draw method
-        screen = self.line.setup_draw()
+        (width, height) = self.line.setup_draw()
 
         # Validate screen dimensions
         x_positions = [o.position[0] for o in self.line._objects.values() if isinstance(o, Station)]
@@ -166,5 +166,5 @@ class TestAssemblyLine(unittest.TestCase):
         expected_width = max(x_positions) + 100
         expected_height = max(y_positions) + 100
 
-        self.assertEqual(screen.get_width(), expected_width)
-        self.assertEqual(screen.get_height(), expected_height)
+        self.assertEqual(width, expected_width)
+        self.assertEqual(height, expected_height)
