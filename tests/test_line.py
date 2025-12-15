@@ -151,20 +151,3 @@ class TestAssemblyLine(unittest.TestCase):
         state, terminated = self.line.step()
         # Check if another step_size is passed
         self.assertTrue(state.df()["T_end"].iloc[-1] == self.line.step_size * 2)
-        
-    def test_setup_draw(self):
-        self.line = ShowCase()
-        self.line.build()  # Make sure the line is built before testing
-
-        # Run the setup_draw method
-        (width, height) = self.line.setup_draw()
-
-        # Validate screen dimensions
-        x_positions = [o.position[0] for o in self.line._objects.values() if isinstance(o, Station)]
-        y_positions = [o.position[1] for o in self.line._objects.values() if isinstance(o, Station)]
-
-        expected_width = max(x_positions) + 100
-        expected_height = max(y_positions) + 100
-
-        self.assertEqual(width, expected_width)
-        self.assertEqual(height, expected_height)
