@@ -274,6 +274,7 @@ class Line:
         show_status=True,
         visualize=False,
         capture_screen=False,
+        initial_zoom=None,
     ):
         """
         Args:
@@ -289,7 +290,7 @@ class Line:
         if visualize:
             # Stations first, then connectors
             screen = pygame.display.set_mode((1280, 720))
-            Viewpoint1 = Viewpoint(size=self.setup_draw())
+            viewpoint = Viewpoint(size=self.setup_draw(), zoom=initial_zoom)
 
 
         # Register objects when simulation is initially started
@@ -319,15 +320,15 @@ class Line:
 
             if visualize:
 
-                Viewpoint1.check_view_update()
-                Viewpoint1.clear_paper()
+                viewpoint.check_view_update()
+                viewpoint.clear_paper()
 
                 if actions is not None:
-                    self._draw(screen, Viewpoint1.paper, actions)
+                    self._draw(screen, viewpoint.paper, actions)
                 else:
-                    self._draw(screen, Viewpoint1.paper)
+                    self._draw(screen, viewpoint.paper)
 
-                Viewpoint1._draw(screen)
+                viewpoint._draw(screen)
 
                 pygame.display.flip()
 

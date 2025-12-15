@@ -6,7 +6,7 @@ class Viewpoint:
         self,
         size=None,
         position=None,
-        zoom=1,
+        zoom=None,
     ):
 
         if size is None:
@@ -16,6 +16,9 @@ class Viewpoint:
 
         if position is None:
             position = (0, 0)
+
+        if zoom is None:
+            zoom = 1
 
         self._view = pygame.Vector3(position[0], position[1], zoom)
 
