@@ -183,7 +183,9 @@ class Line:
                 sys.exit()
 
         screen.fill('white')
-
+        
+        self.viewpoint.clear_paper()
+        
         font = pygame.font.SysFont(None, 20)
 
         time = font.render('T={:.2f}'.format(self.env.now), True, 'black')
@@ -196,9 +198,12 @@ class Line:
         self._draw_stations(paper)
         if actions:
             self._draw_actions(paper, actions)
-
+        
+        self.viewpoint._draw(screen)
         screen.blit(time, time.get_rect(center=(30, 30)))
         screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
+
+        pygame.display.flip()
 
     def _draw_actions(self, screen, actions):
         font = pygame.font.SysFont(None, 20)
@@ -290,7 +295,7 @@ class Line:
         if visualize:
             # Stations first, then connectors
             screen = pygame.display.set_mode((1280, 720))
-            viewpoint = Viewpoint(size=self.setup_draw(), zoom=initial_zoom)
+            self.viewpoint = Viewpoint(size=self.setup_draw(), zoom=initial_zoom)
 
 
         # Register objects when simulation is initially started
@@ -320,17 +325,12 @@ class Line:
 
             if visualize:
 
-                viewpoint.check_view_update()
-                viewpoint.clear_paper()
+                self.viewpoint.check_view_update()
 
                 if actions is not None:
-                    self._draw(screen, viewpoint.paper, actions)
+                    self._draw(screen, self.viewpoint.paper, actions)
                 else:
-                    self._draw(screen, viewpoint.paper)
-
-                viewpoint._draw(screen)
-
-                pygame.display.flip()
+                    self._draw(screen, self.viewpoint.paper)
 
         if capture_screen and visualize:
             pygame.image.save(screen, f"{self.name}.png")
