@@ -75,3 +75,8 @@ This will:
 - Run the simulation in real-time (`realtime=True`).
 - Display the visualization (`visualize=True`) at normal speed (`factor=1.0`).
 
+
+## Zooming and Panning
+
+Using `+` and `-` keys, you can zoom in and out of the visualization. Moreover, using the arrow
+keys, you can pan around the visualization area to explore different parts of the line.

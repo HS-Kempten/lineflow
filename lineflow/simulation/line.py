@@ -12,6 +12,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
+from lineflow.simulation.visualization import Viewpoint
 
 logger = logging.getLogger(__name__)
 
@@ -174,14 +175,26 @@ class Line:
         for o in self._objects.values():
             o.register(self.env)
 
-    def _draw(self, screen, actions=None):
+    def _draw(self, actions=None):
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.teardown_draw()
-                sys.exit()
+        self.viewpoint.check_user_input()
 
-        screen.fill('white')
+        self.viewpoint.clear()
+        
+        # Draw objects, first connectors, then stations
+        self._draw_connectors()
+        self._draw_stations()
+        
+        self.viewpoint._draw()
+
+        if actions is not None:
+            self._draw_actions(actions)
+
+        self._draw_info()
+
+        pygame.display.flip()
+
+    def _draw_info(self):
 
         font = pygame.font.SysFont(None, 20)
 
@@ -189,47 +202,59 @@ class Line:
         n_parts = font.render(
             f'#Parts={self.get_n_parts_produced()}', True, 'black'
         )
+        self.viewpoint.screen.blit(time, time.get_rect(center=(30, 30)))
+        self.viewpoint.screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
 
-        screen.blit(time, time.get_rect(center=(30, 30)))
-        screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
-
-        # Draw objects, first connectors, then stations
-        self._draw_connectors(screen)
-        self._draw_stations(screen)
-        if actions:
-            self._draw_actions(screen, actions)
-        pygame.display.flip()
-
-    def _draw_actions(self, screen, actions):
+    def _draw_actions(self, actions):
         font = pygame.font.SysFont(None, 20)
         actions = font.render(f'{actions}', True, 'black')
-        screen.blit(actions, actions.get_rect(center=(500, 30)))
+        self.viewpoint.screen.blit(actions, actions.get_rect(center=(500, 30)))
 
-    def _draw_stations(self, screen):
-        self._draw_objects_of_type(screen, Station)
+    def _draw_stations(self):
+        self._draw_objects_of_type(Station)
 
-    def _draw_connectors(self, screen):
-        self._draw_objects_of_type(screen, Connector)
+    def _draw_connectors(self):
+        self._draw_objects_of_type(Connector)
 
-    def _draw_objects_of_type(self, screen, object_type):
-        for name, obj in self._objects.items():
+    def _draw_objects_of_type(self, object_type):
+        for _, obj in self._objects.items():
             if isinstance(obj, object_type):
-                obj._draw(screen)
+                obj._draw(self.viewpoint.paper)
 
-    def setup_draw(self):
-        pygame.init()
+    def _get_object_positions(self):
         x = []
         y = []
         for o in self._objects.values():
-            o.setup_draw()
             if hasattr(o, "position"):
                 x.append(o.position[0])
                 y.append(o.position[1])
+        return x, y
 
-        return pygame.display.set_mode((max(x) + 100, max(y) + 100))
+    def _adjust_positions(self):
+        x, y = self._get_object_positions()
 
-    def teardown_draw(self):
-        pygame.quit()
+        if min(x) < 100:
+            delta_x = 100 - min(x)
+            for o in self._objects.values():
+                if hasattr(o, "position"):
+                    o.position[0] += delta_x
+        if min(y) < 100:
+            delta_y = 100 - min(y)
+            for o in self._objects.values():
+                if hasattr(o, "position"):
+                    o.position[1] += delta_y
+
+        x, y = self._get_object_positions()
+        return max(x), max(y)
+
+    def setup_draw(self):
+        pygame.init()
+
+        max_x, max_y = self._adjust_positions()
+        for o in self._objects.values():
+            o.setup_draw()
+
+        self.viewpoint = Viewpoint(size=(max_x+100, max_y+100))
 
     def apply(self, values):
         for object_name in values.keys():
@@ -288,8 +313,8 @@ class Line:
         """
 
         if visualize:
-            # Stations first, then connectors
-            screen = self.setup_draw()
+            self.setup_draw()
+
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:
@@ -317,16 +342,13 @@ class Line:
                 self.apply(actions)
 
             if visualize:
-                if actions is not None:
-                    self._draw(screen, actions)
-                else:
-                    self._draw(screen)
+                self._draw(actions)
 
         if capture_screen and visualize:
-            pygame.image.save(screen, f"{self.name}.png")
+            pygame.image.save(self.viewpoint.screen, f"{self.name}.png")
 
         if visualize:
-            self.teardown_draw()
+            self.viewpoint.teardown()
 
     def get_observations(self, object_name=None):
         """
