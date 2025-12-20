@@ -230,7 +230,26 @@ class Line:
             if hasattr(o, "position"):
                 x.append(o.position[0])
                 y.append(o.position[1])
-        
+
+        if min(x) < 100:
+            delta_x = 100 - min(x)
+            for o in self._objects.values():
+                if hasattr(o, "position"):
+                    o.position[0] += delta_x
+        if min(y) < 100:
+            delta_y = 100 - min(y)
+            for o in self._objects.values():
+                if hasattr(o, "position"):
+                    o.position[1] += delta_y
+
+        x = []
+        y = []
+        for o in self._objects.values():
+            o.setup_draw()
+            if hasattr(o, "position"):
+                x.append(o.position[0])
+                y.append(o.position[1])
+
         self.viewpoint = Viewpoint(size=(max(x)+100,max(y)+100))
 
 
