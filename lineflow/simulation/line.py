@@ -221,15 +221,17 @@ class Line:
             if isinstance(obj, object_type):
                 obj._draw(self.viewpoint.paper)
 
-    def setup_draw(self):
-        pygame.init()
+    def _get_object_positions(self):
         x = []
         y = []
         for o in self._objects.values():
-            o.setup_draw()
             if hasattr(o, "position"):
                 x.append(o.position[0])
                 y.append(o.position[1])
+        return x, y
+
+    def _adjust_positions(self):
+        x, y = self._get_object_positions()
 
         if min(x) < 100:
             delta_x = 100 - min(x)
@@ -242,16 +244,17 @@ class Line:
                 if hasattr(o, "position"):
                     o.position[1] += delta_y
 
-        x = []
-        y = []
+        x, y = self._get_object_positions()
+        return max(x), max(y)
+
+    def setup_draw(self):
+        pygame.init()
+
+        max_x, max_y = self._adjust_positions()
         for o in self._objects.values():
             o.setup_draw()
-            if hasattr(o, "position"):
-                x.append(o.position[0])
-                y.append(o.position[1])
 
-        self.viewpoint = Viewpoint(size=(max(x)+100,max(y)+100))
-
+        self.viewpoint = Viewpoint(size=(max_x+100, max_y+100))
 
     def apply(self, values):
         for object_name in values.keys():
