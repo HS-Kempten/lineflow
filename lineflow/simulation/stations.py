@@ -652,6 +652,8 @@ class SequentialProcess(Process):
                 carrier = yield self.env.process(self.buffer_in())
                 self.state['carrier'].update(carrier.name)
 
+                yield self.env.timeout(2)
+
                 total_processing_time = 0
 
                 for part in carrier.get_parts_for_station(self.name):
