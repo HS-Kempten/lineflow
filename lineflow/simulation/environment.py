@@ -159,7 +159,7 @@ class LineSimulation(gym.Env):
             if terminated:
                 reward = self.line.get_n_parts_produced()-self.line.scrap_factor*self.line.get_n_scrap_parts()
         else:
-            assert False, f"Reward {self.reward} not implemented"
+            raise ValueError(f"Reward {self.reward} not implemented")
 
         self.n_parts = self.line.get_n_parts_produced()
         self.n_scrap_parts = self.line.get_n_scrap_parts()

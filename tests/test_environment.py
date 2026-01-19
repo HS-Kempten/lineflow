@@ -129,6 +129,10 @@ class TestAssemblyLine(unittest.TestCase):
         self.assertEqual(sum(rewards[:-1]), 0)
         self.assertEqual(rewards[-1], self.line.get_n_parts_produced())
 
+    def test_exception_on_unkown_reward(self):
+        with self.assertRaises(AssertionError):
+            LineSimulation(self.line, simulation_end=100, reward="unknown_reward")
+
 class TestSpaceBuilding(unittest.TestCase):
 
     def setUp(self):
