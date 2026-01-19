@@ -96,7 +96,7 @@ class LineSimulation(gym.Env):
 
         self.render_mode = render_mode
 
-        assert reward in ["uptime", "parts"]
+        assert reward in ["uptime", "parts", "parts-sparse"]
         self.reward = reward
 
         # fix an order of states
@@ -154,8 +154,12 @@ class LineSimulation(gym.Env):
                 self.line.scrap_factor*(self.line.get_n_scrap_parts() - self.n_scrap_parts)
         elif self.reward == "uptime":
             reward = self.line.get_uptime(lookback=self.part_reward_lookback).mean()
+        elif self.reward == "parts-sparse":
+            reward = 0
+            if terminated:
+                reward = self.line.get_n_parts_produced()-self.line.scrap_factor*self.line.get_n_scrap_parts()
         else:
-            assert False, f"Reward {reward} not implemented"
+            assert False, f"Reward {self.reward} not implemented"
 
         self.n_parts = self.line.get_n_parts_produced()
         self.n_scrap_parts = self.line.get_n_scrap_parts()
