@@ -110,11 +110,28 @@ class TestAssemblyLine(unittest.TestCase):
         for _ in range(n_steps):
             # Random action
             action = env.action_space.sample()
-            obs, reward, terminated, truncated, info = env.step(action)
+            _, reward, _, _, _ = env.step(action)
             rewards.append(reward)
 
         self.assertEqual(sum(rewards), self.line.get_n_parts_produced() - self.line.get_n_scrap_parts())
 
+    def test_sparse_reward(self):
+        env = LineSimulation(self.line, simulation_end=1_000, reward="parts-sparse")
+        rewards = []
+        done = False
+        env.reset()
+        while not done:
+            action = env.action_space.sample()
+            _, reward, terminated, truncated, _= env.step(action)
+            done = terminated or truncated
+            rewards.append(reward)
+
+        self.assertEqual(sum(rewards[:-1]), 0)
+        self.assertEqual(rewards[-1], self.line.get_n_parts_produced())
+
+    def test_exception_on_unkown_reward(self):
+        with self.assertRaises(AssertionError):
+            LineSimulation(self.line, simulation_end=100, reward="unknown_reward")
 
 class TestSpaceBuilding(unittest.TestCase):
 

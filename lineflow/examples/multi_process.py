@@ -95,7 +95,7 @@ class MultiProcess(Line):
 
 
 if __name__ == "__main__":
-    n_processes = 5
+    n_processes = 10
     line = MultiProcess(n_processes=n_processes, realtime=True, factor=0.1, alternate=False)
     agent = make_greedy_policy(n_processes)
     line.run(simulation_end=3000, agent=agent, visualize=True)
