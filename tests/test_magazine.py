@@ -172,7 +172,7 @@ class TestMagazine(unittest.TestCase):
         # Magazine produces carrier 'Magazine_cr_2'
         self.assertTrue(df.iloc[5].carrier, 'Magazine_cr_2')
         # Afterwards no more carriers
-        self.assertListEqual(df.iloc[6:].carrier.unique().tolist(), [None])
+        self.assertListEqual(df.iloc[6:].carrier.unique().tolist(), [np.nan])
 
     def test_carrier_insertion_by_policy(self):
 
