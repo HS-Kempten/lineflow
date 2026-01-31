@@ -256,9 +256,6 @@ class Line:
 
         self.viewpoint = Viewpoint(size=(max_x+100, max_y+100))
 
-    def teardown_draw(self):
-        self.viewpoint.teardown()
-
     def apply(self, values):
         for object_name in values.keys():
             self._objects[object_name].apply(values[object_name])
