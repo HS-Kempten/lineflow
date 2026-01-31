@@ -1,5 +1,4 @@
 import pygame
-import sys
 
 class Viewpoint:
     """
@@ -65,4 +64,3 @@ class Viewpoint:
 
     def teardown(self):
         pygame.quit()
-        sys.exit()
