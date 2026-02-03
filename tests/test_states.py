@@ -316,8 +316,11 @@ class TestLineState(unittest.TestCase):
         np.testing.assert_array_equal(
             df['station_b_on'], [True, True, True]
         )
-        np.testing.assert_array_equal(
-            df['station_b_carrier'], [None, None, 'A']
+
+        pd.testing.assert_series_equal(
+            df["station_b_carrier"],
+            pd.Series([pd.NA, pd.NA, "A"], name="station_b_carrier"),
+            check_dtype=False,
         )
 
     def test_values(self):
