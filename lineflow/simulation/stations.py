@@ -393,14 +393,14 @@ class Assembly(Station):
             TokenState(name='carrier_component', is_observable=False),
             CountState('n_scrap_parts', is_actionable=False, is_observable=True),
             CountState('n_workers', is_actionable=False, is_observable=True, vmin=0),
-            NumericState('processing_time', is_actionable=False, is_observable=True, vmin=0),
+            NumericState('processing_time', is_actionable=False, is_observable=True, vmin=-1),
         )
         self.state['on'].update(True)
         self.state['mode'].update("waiting")
         self.state['carrier'].update(None)
         self.state['carrier_component'].update(None)
         self.state['n_scrap_parts'].update(0)
-        self.state['processing_time'].update(self.processing_time)
+        self.state['processing_time'].update(-1)
         self.state['n_workers'].update(self.n_workers)
 
     def connect_to_component_input(self, station, *args, **kwargs):
@@ -537,13 +537,13 @@ class Process(Station):
             DiscreteState('on', categories=[True, False], is_actionable=False, is_observable=False),
             DiscreteState('mode', categories=['working', 'waiting', 'failing']),
             TokenState(name='carrier', is_observable=False),
-            NumericState('processing_time', is_actionable=False, is_observable=True, vmin=0),
+            NumericState('processing_time', is_actionable=False, is_observable=False, vmin=-1),
             CountState('n_workers', is_actionable=False, is_observable=True, vmin=0),
         )
         self.state['on'].update(True)
         self.state['mode'].update("waiting")
         self.state['carrier'].update(None)
-        self.state['processing_time'].update(self.processing_time)
+        self.state['processing_time'].update(-1)
         self.state['n_workers'].update(self.n_workers)
 
     def _draw_info(self, screen):
