@@ -32,11 +32,19 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_javascript:
+  - javascripts/config.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
 
 nav:
   - About: index.md
@@ -50,7 +58,7 @@ nav:
     - Worker Assignment: examples/worker_assignment.md
     - Part Distribution: examples/multi_process.md
     - Waiting Time: examples/waiting_time.md
-    - Waiting Time Jump: examples/waiting_time_jump.md
     - Complex Line: examples/complex_line.md
+    - Part Dependence: examples/part_dependence.md
   - API: api.md
 

@@ -525,13 +525,20 @@ class Assembly(Station):
 
 
 class Process(Station):
-    '''
-    Process stations take a carrier as input, process the carrier, and push it onto buffer_out
+    """
+    Process stations take a carrier as input, process the carrier, and push it onto `buffer_out`
+
     Args:
-        processing_std: Standard deviation of the processing time
-        rework_probability: Probability of a carrier to be reworked (takes 2x the time)
+        name (str): Name of the station
+        buffer_in (lineflow.simulation.connectors.Buffer, optional): Buffer in
+        buffer_out (lineflow.simulation.connectors.Buffer, optional): Buffer out
+        processing_time (float): Time it takes to process the carrier (carrier needs to be
+            available)
+        processing_std (float): Standard deviation of the processing time
+        rework_probability (float): Probability of a carrier to be reworked (takes 2x the time)
         position (tuple): X and Y position in visualization
-    '''
+        worker_pool (lineflow.simulation.stations.WorkerPool, optional): Worker pool to
+    """
 
     def __init__(
         self,
@@ -614,6 +621,90 @@ class Process(Station):
 class SequentialProcess(Process):
     """
     SequentialProcess stations take a carrier as input, process each part on the carrier
+    sequentially, and push the carrier onto buffer_out. The processing time of each part can be
+    different and is determined by the part specifications. If a part does not fulfill the assembly
+    condition, it is scrapped and the carrier is reworked (takes 2x the time). If connected to a
+    worker pool, workers are released and requested for each part on the carrier. 
+
+    The processing time for each part is the sum of the processing time of the station (which is 0
+    by default) and the additional processing time specified in the part specifications for this
+    station. The standard deviation of the processing time is determined by the `processing_std`
+    attribute of the station and is applied to the total processing time of the part.
+
+    Args:
+        name (str): Name of the station
+        buffer_in (lineflow.simulation.connectors.Buffer, optional): Buffer in
+        buffer_out (lineflow.simulation.connectors.Buffer, optional): Buffer out
+        processing_time (float): Time it takes to process each part on the carrier 
+        processing_std (float): Standard deviation of the processing time
+        position (tuple): X and Y position in visualization
+        worker_pool (lineflow.simulation.stations.WorkerPool, optional): Worker pool to
+
+
+    Example:
+
+    Assume a source produces carriers of type `Type_A` with two parts `Part1` and `Part2` that have the
+    following specifications:
+
+    ```python
+    carrier_specs = {
+        'Type_A': {
+            'Part1': {
+                'Process1': {
+                    'extra_processing_time': 20,
+                    'error_probability': 0.0,
+                    'error_time': 0,
+                }, 
+                'Process2': {
+                    'extra_processing_time': 5,
+                    'error_probability': 0.0,
+                    'error_time': 0,
+                    }
+            },
+            'Part2': {
+                'Process2': {
+                    'extra_processing_time': 8,
+                    'error_probability': 0.5,
+                    'error_time': 10,
+                }
+            }
+        },
+    }
+    ```
+
+    Assume the processes are initialized as follows:
+
+    ```python
+    p1 = SequentialProcess(
+        name='Process1',
+        processing_time=0,
+        processing_std=0.1,
+        rework_probability=0.5,
+    )
+
+    p2 = SequentialProcess(
+        name='Process2',
+        processing_time=10,
+        processing_std=0.1,
+        rework_probability=0.5,
+    )
+    ```
+
+    Both processes process all parts. 
+
+    At `Process1`, a carrier of type `Type_A` with a processing time of 
+
+    $$
+    \\underbrace{0 + 20}_{\\mathrm{Part1}} + \\underbrace{0 + 0}_{\\mathrm{Part2}} = 20
+    $$
+
+
+    At `Process2`, a carrier of type `Type_A` with a processing time of 
+
+    $$
+    \\underbrace{10 + 5}_{\\mathrm{Part1}} + \\underbrace{10 + 8}_{\\mathrm{Part2}} = 33
+    $$
+
     """
     def __init__(
         self,
