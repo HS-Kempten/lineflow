@@ -192,7 +192,7 @@ class LineSimulation(gym.Env):
         observation = self._get_observations_as_tensor(state)
 
         if self.render_mode == "human":
-            self.screen = self.line.setup_draw()
+            self.line.setup_draw()
             self.render()
         return observation, self._get_info()
 
@@ -201,11 +201,11 @@ class LineSimulation(gym.Env):
         return self.line.state.observable_features
 
     def render(self):
-        self.line._draw(self.screen)
+        self.line._draw()
 
     def close(self):
         if self.render_mode == 'human':
-            self.line.teardown_draw()
+            self.line.viewpoint.teardown()
 
     def _get_observations_as_tensor(self, state):
 
