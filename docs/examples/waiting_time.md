@@ -1,6 +1,6 @@
 # Waiting Time
 
-## Without jumps
+## Without time jumps
 
 <video src="https://tobias-windisch.de/data/vids/lineflow_waitingtime.mov"
        autoplay

@@ -26,6 +26,7 @@ plugins:
         canonical_version: latest
 
 markdown_extensions:
+  - admonition
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
