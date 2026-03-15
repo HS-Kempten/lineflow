@@ -17,3 +17,12 @@
 
 ::: scripts.train
 ::: lineflow.learning.curriculum
+
+# Examples
+
+::: lineflow.examples.part_dependence
+::: lineflow.examples.waiting_time
+::: lineflow.examples.multi_sink
+::: lineflow.examples.multi_process
+::: lineflow.examples.simple_line
+::: lineflow.examples.showcase_line

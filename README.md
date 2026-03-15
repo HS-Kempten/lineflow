@@ -81,14 +81,18 @@ mkdocs serve
 If you use our work in your research, please consider citing us with
 
 ```
-@misc{LineFlow,
-      title={LineFlow: A Framework to Learn Active Control of Production Lines}, 
-      author={Kai Müller and Martin Wenzel and Tobias Windisch},
-      year={2025},
-      eprint={2505.06744},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2505.06744}, 
+@InProceedings{pmlr-v267-muller25c,
+  title = {{L}ine{F}low: A Framework to Learn Active Control of Production Lines},
+  author = {M\"{u}ller, Kai and Wenzel, Martin and Windisch, Tobias},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning},
+  pages = {45212--45235},
+  year = {2025},
+  editor = {Singh, Aarti and Fazel, Maryam and Hsu, Daniel and Lacoste-Julien, Simon and Berkenkamp, Felix and Maharaj, Tegan and Wagstaff, Kiri and Zhu, Jerry},
+  volume = {267},
+  series = {Proceedings of Machine Learning Research},
+  month = {13--19 Jul},
+  publisher = {PMLR},
+  url = {https://proceedings.mlr.press/v267/muller25c.html},
 }
 ```
 
