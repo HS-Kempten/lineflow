@@ -37,7 +37,15 @@ class MovableObject(object):
             text = font.render(self.name, True, 'blue')
             screen.blit(text, text.get_rect(center=self._position + (0, -1.3*self._height)))
 
+    def _add(self, data_list, with_text=True):
+        self._add_shape(data_list)
+        if with_text:
+            data_list[-1]['name'] = self.name
+
     def _draw_shape(self, screen):
+        raise NotImplementedError()
+
+    def _add_shape(self, data_list):
         raise NotImplementedError()
 
     def move(self, position):
@@ -195,6 +203,9 @@ class Carrier(MovableObject):
                 width=self._width_part,
                 height=self._height_part,
             )
+
+    def _add_shape(self, data_list):
+        data_list.append(dict(type='carrier',position=self._position,fill=self.capacity/len(self.parts)))
 
     def move(self, position):
         """

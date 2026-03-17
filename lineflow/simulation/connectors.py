@@ -113,7 +113,7 @@ class Buffer(Connector):
                 )
 
             self._positions_arrow[i] = arrowhead
-
+            
     def _draw(self, screen):
 
         pygame.draw.line(
@@ -135,6 +135,11 @@ class Buffer(Connector):
         # Draw carriers
         for carrier in self.carriers.values():
             carrier.draw(screen)
+
+    def _add(self, data_list):
+        data_list.append(dict(type='connector',start=self._position_input,end=self._position_output,n_slots=self.capacity))
+        for carrier in self.carriers.values():
+            carrier._add(data_list)
 
     def _sample_put_time(self):
         return self.put_time + self.random.exponential(scale=self.put_std)

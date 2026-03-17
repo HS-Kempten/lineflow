@@ -4,6 +4,7 @@ import pygame
 import numpy as np
 import logging
 from tqdm import tqdm
+from multiprocessing import Process, Queue, Event
 
 from lineflow.simulation.stationary_objects import StationaryObject
 from lineflow.simulation.states import LineStates
@@ -12,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import Viewpoint
+from lineflow.simulation.visualization import start_visualization, Viewpoint
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,14 @@ class Line:
         self._info = info
 
         self.reset(random_state=random_state)
+
+        self.stop_event = Event()
+        self.connection = Queue()
+        self.visualization_process = Process(
+            target=start_visualization,
+            args=(self.connection, self.stop_event)
+        )
+        self.data = []
 
     @property
     def name(self):
@@ -221,6 +230,29 @@ class Line:
             if isinstance(obj, object_type):
                 obj._draw(self.viewpoint.paper)
 
+    def give_data(self):
+        if not self.stop_event.is_set():
+            self.data = []
+            self._add_connectors()
+            self._add_stations()
+            self.connection.put(self.data)
+
+    def setup_connectors(self):
+        for _, obj in self._objects.items():
+            if isinstance(obj, Connector):
+                obj.setup_draw()
+
+    def _add_stations(self):
+        self._add_objects_of_type(Station)
+
+    def _add_connectors(self):
+        self._add_objects_of_type(Connector)
+
+    def _add_objects_of_type(self, object_type):
+        for _, obj in self._objects.items():
+            if isinstance(obj, object_type):
+                obj._add(self.data)
+
     def _get_object_positions(self):
         x = []
         y = []
@@ -311,10 +343,10 @@ class Line:
             visualize (bool): If true, line visualization is opened
             capture_screen (bool): Captures last Time frame when screen should be recorded
         """
-
+        self.setup_connectors()
         if visualize:
-            self.setup_draw()
-
+            self.visualization_process.start()
+            #self.setup_draw()
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:
@@ -342,13 +374,16 @@ class Line:
                 self.apply(actions)
 
             if visualize:
-                self._draw(actions)
+                self.give_data()
+                #self._draw(actions)
 
-        if capture_screen and visualize:
-            pygame.image.save(self.viewpoint.screen, f"{self.name}.png")
+        #if capture_screen and visualize:
+        #    pygame.image.save(self.viewpoint.screen, f"{self.name}.png")
 
         if visualize:
-            self.viewpoint.teardown()
+            #self.viewpoint.teardown()
+            self.stop_event.set()
+            self.visualization_process.join()
 
     def get_observations(self, object_name=None):
         """
