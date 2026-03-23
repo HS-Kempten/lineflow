@@ -51,10 +51,11 @@ class Line:
         self.reset(random_state=random_state)
 
         self.stop_event = Event()
+        self.halt_event = Event()
         self.connection = Queue()
         self.visualization_process = Process(
             target=start_visualization,
-            args=(self.connection, self.stop_event)
+            args=(self.connection, self.stop_event, self.halt_event)
         )
         self.data = []
 
@@ -230,11 +231,14 @@ class Line:
             if isinstance(obj, object_type):
                 obj._draw(self.viewpoint.paper)
 
-    def give_data(self):
+    def give_data(self, actions=None):
         if not self.stop_event.is_set():
             self.data = []
             self._add_connectors()
             self._add_stations()
+            self._add_info()
+            if actions is not None:
+                self._add_actions(actions)
             self.connection.put(self.data)
 
     def setup_connectors(self):
@@ -252,6 +256,18 @@ class Line:
         for _, obj in self._objects.items():
             if isinstance(obj, object_type):
                 obj._add(self.data)
+
+    def _add_actions(self, actions):
+        self.data.append(dict(type="actions", actions=actions))
+
+    def _add_info(self):
+        self.data.append(
+            dict(
+                type="info",
+                time=self.env.now,
+                n_parts=self.get_n_parts_produced()
+            )
+        )
 
     def _get_object_positions(self):
         x = []
@@ -361,6 +377,8 @@ class Line:
         )
 
         while self.env.now < simulation_end:
+            if self.halt_event.is_set():
+                break
             pbar.update(self.env.now - now)
             now = self.env.now
             try:
@@ -374,7 +392,7 @@ class Line:
                 self.apply(actions)
 
             if visualize:
-                self.give_data()
+                self.give_data(actions)
                 #self._draw(actions)
 
         #if capture_screen and visualize:

@@ -214,7 +214,13 @@ class Carrier(MovableObject):
             )
 
     def _add_shape(self, data_list):
-        data_list.append(dict(type='carrier',position=self._position,fill=self.capacity/len(self.parts)))
+        parts = len(self.parts)
+        if self.capacity is np.inf and parts != 0:
+            fill = 1
+        else:
+            fill = parts/self.capacity
+
+        data_list.append(dict(type='carrier',position=self._position,fill=fill))
 
     def move(self, position):
         """

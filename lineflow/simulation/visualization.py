@@ -75,6 +75,7 @@ class Visualization:
         points=None,
         connection=None,
         stop_event=None,
+        halt_event=None,
         ):
 
         if size is None:
@@ -87,6 +88,7 @@ class Visualization:
 
         self.connection = connection
         self.stop_event = stop_event
+        self.halt_event = halt_event
 
         self.center = pygame.Vector2(self.size[0]/2, self.size[1]/2)
 
@@ -94,6 +96,8 @@ class Visualization:
         self.stations = []
         self.connectors = []
         self.carriers = []
+        self.info = None
+        self.actions = None
 
     def teardown(self):
         self.running = False
@@ -114,6 +118,8 @@ class Visualization:
         self.carriers = []
         self.connectors = []
         self.stations = []
+        self.info = None
+        self.actions = None
         for item in self.connection_data:
             if item['type'] == 'carrier':
                 self.carriers.append(item)
@@ -121,7 +127,10 @@ class Visualization:
                 self.connectors.append(item)
             elif item['type'] == 'station':
                 self.stations.append(item)
-
+            elif item['type'] == 'info':
+                self.info = item
+            elif item['type'] == 'actions':
+                self.actions = item
     def check_connection(self):
         self.get_from_connection()
         self.sort_connection_data()
@@ -242,10 +251,50 @@ class Visualization:
                     )
                 )
 
+    def draw_info(self):
+        if self.info is not None:
+            font = pygame.font.SysFont(None, 20)
+            time = font.render(
+                'T={:.2f}'.format(self.info['time']),
+                True,
+                'black',
+                'white'
+            )
+            n_parts = font.render(
+                f'#Parts={self.info['n_parts']}',
+                True,
+                'black',
+                'white'
+            )
+            self.screen.blit(time, time.get_rect(center=(30, 30)))
+            self.screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
+
+    def draw_actions(self):
+        if self.actions is not None:
+            font = pygame.font.SysFont(None, 20)
+            for n, actor_actions in enumerate(self.actions['actions'].items()):
+                actor = actor_actions[0]
+                if len(actor_actions[1]) == 1:
+                    actions = "".join(f"{action[0]}={action[1]}" for action in actor_actions[1].items())
+                else:
+                    actions = "".join(f"{action[0]}={action[1]}, " for action in actor_actions[1].items())
+                text = font.render(
+                    f'{actor}: {actions}',
+                    True,
+                    'black',
+                    'white'
+                )
+                self.screen.blit(text, text.get_rect(center=(self.center.x, 30+n*22)))
+
     def draw_user_input(self):
         font = pygame.font.SysFont(None,24)
-        text = font.render("W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out",True,'black')
-        self.screen.blit(text,text.get_rect(left=200,top=50))
+        text = font.render(
+            "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Halt Simulation",
+            True,
+            'black',
+            'white'
+        )
+        self.screen.blit(text,text.get_rect(left=50,top=self.size[1]-40))
 
     def draw_cursor(self):
         pygame.draw.circle(self.screen,'blue',self.center,10,1)
@@ -267,6 +316,8 @@ class Visualization:
             self.viewpoint.x -= 300*self.dt
         if keys[pygame.K_d]:
             self.viewpoint.x += 300*self.dt
+        if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
+            self.halt_event.set()
         self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
         self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
 
@@ -279,7 +330,7 @@ class Visualization:
         while self.running:
             if self.stop_event.is_set():
                 self.teardown()
-                
+
             self.check_user_input()
             self.check_connection()
             self.clear()
@@ -287,6 +338,8 @@ class Visualization:
             self.draw_stations()
             self.draw_carriers()
             self.draw_user_input()
+            self.draw_info()
+            self.draw_actions()
             self.draw_cursor()
 
 
@@ -297,6 +350,6 @@ class Visualization:
         pygame.quit()
         self.stop_event.set()
 
-def start_visualization(connection, stop_event):
-    visualization = Visualization(connection=connection, stop_event=stop_event)
+def start_visualization(connection, stop_event, halt_event):
+    visualization = Visualization(connection=connection, stop_event=stop_event, halt_event=halt_event)
     visualization.run()

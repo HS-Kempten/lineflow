@@ -222,7 +222,7 @@ class Station(StationaryObject):
 
     def _add_n_workers(self, data_dict):
         if not self.is_automatic:
-            data_dict['worker_skill'] = self.worker_skill
+            data_dict['worker_skill'] = str(self.worker_skill)
 
     def _draw_n_carriers(self, screen):
         font = pygame.font.SysFont(None, 14)
@@ -237,7 +237,7 @@ class Station(StationaryObject):
         )
 
     def _add_n_carriers(self, data_dict):
-        data_dict['magazine'] = self.state['carriers_in_magazine']
+        data_dict['magazine'] = self.state['carriers_in_magazine'].to_str()
 
     def get_performance_coefficient(self):
         return compute_performance_coefficient(self.worker_skill)
