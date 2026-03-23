@@ -359,9 +359,9 @@ class Line:
             visualize (bool): If true, line visualization is opened
             capture_screen (bool): Captures last Time frame when screen should be recorded
         """
-        self.setup_connectors()
         if visualize:
             self.visualization_process.start()
+            self.setup_connectors()
             #self.setup_draw()
 
         # Register objects when simulation is initially started
