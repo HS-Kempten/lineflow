@@ -179,8 +179,8 @@ class Station(StationaryObject):
             self._height,
         )
 
-        #font = pygame.font.SysFont(None, 20)
-        #self._text = font.render(self.name, True, 'black')
+        font = pygame.font.SysFont(None, 20)
+        self._text = font.render(self.name, True, 'black')
 
     def _add(self, data_list):
         data = dict(type='station',name=self.name,position=self.position,mode=self.state['mode'].to_str())

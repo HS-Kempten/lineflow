@@ -83,6 +83,7 @@ class Visualization:
         if viewpoint is None:
             viewpoint = (0,0,1)
         self.viewpoint = pygame.Vector3(viewpoint)
+        self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
 
         self.connection = connection
         self.stop_event = stop_event
@@ -130,8 +131,8 @@ class Visualization:
             pygame.draw.line(
                 self.screen,
                 'gray',
-                (self.viewpoint.x,self.viewpoint.y) + self.center + connector['start']/self.viewpoint.z,
-                (self.viewpoint.x,self.viewpoint.y) + self.center + connector['end']/self.viewpoint.z,
+                self.center + (self.view + connector['start'])/self.viewpoint.z,
+                self.center + (self.view + connector['end'])/self.viewpoint.z,
                 width=int(10/self.viewpoint.z)
             )
             length = connector['end']/self.viewpoint.z-connector['start']/self.viewpoint.z
@@ -140,7 +141,7 @@ class Visualization:
                 pygame.draw.circle(
                     self.screen,
                     'gray',
-                    (self.viewpoint.x,self.viewpoint.y) + self.center + connector['start']/self.viewpoint.z + snippet*(n+1),
+                    self.view/self.viewpoint.z + self.center + connector['start']/self.viewpoint.z + snippet*(n+1),
                     int(10/self.viewpoint.z)
                 )
 
@@ -165,8 +166,8 @@ class Visualization:
                 self.screen,
                 color,
                 pygame.Rect(
-                    self.viewpoint.x + self.center.x + (station['position'].x-width/2)/self.viewpoint.z,
-                    self.viewpoint.y + self.center.y + (station['position'].y-height/2)/self.viewpoint.z,
+                    self.center.x + (self.viewpoint.x + station['position'].x-width/2)/self.viewpoint.z,
+                    self.center.y + (self.viewpoint.y + station['position'].y-height/2)/self.viewpoint.z,
                     width/self.viewpoint.z,
                     height/self.viewpoint.z
                 ),
@@ -176,7 +177,7 @@ class Visualization:
             self.screen.blit(
                 name_text,
                 name_text.get_rect(
-                    center=(self.viewpoint.x,self.viewpoint.y) + self.center + (station['position']+(0,-0.7*height))/self.viewpoint.z
+                    center=self.center + (self.view + station['position']+(0,-0.7*height))/self.viewpoint.z
                 )
             )
             if 'worker_skill' in station or 'magazine' in station:
@@ -188,22 +189,22 @@ class Visualization:
                 self.screen.blit(
                     info_text,
                     info_text.get_rect(
-                        center=(self.viewpoint.x,self.viewpoint.y) + self.center + station['position']/self.viewpoint.z
+                        center=self.center + (self.view + station['position'])/self.viewpoint.z
                     )
                 )
             if 'pos_in_out' in station:
                 pygame.draw.circle(
                     self.screen,
                     'gray',
-                    (self.viewpoint.x,self.viewpoint.y) + self.center + station['position']/self.viewpoint.z,
+                    self.center + (self.view + station['position'])/self.viewpoint.z,
                     6/self.viewpoint.z
                 )
                 for pos in station['pos_in_out']:
                     pygame.draw.line(
                         self.screen,
                         'gray',
-                        (self.viewpoint.x,self.viewpoint.y) + self.center + station['position']/self.viewpoint.z,
-                        (self.viewpoint.x,self.viewpoint.y) + self.center + pos/self.viewpoint.z,
+                        self.center + (self.view + station['position'])/self.viewpoint.z,
+                        self.center + (self.view + pos)/self.viewpoint.z,
                         width=int(5/self.viewpoint.z)
                     )
 
@@ -215,8 +216,8 @@ class Visualization:
                 self.screen,
                 'black',
                 pygame.Rect(
-                    self.viewpoint.x + self.center.x + (carrier['position'].x-width/2)/self.viewpoint.z,
-                    self.viewpoint.y + self.center.y + (carrier['position'].y-height/2)/self.viewpoint.z,
+                    self.center.x + (self.viewpoint.x + carrier['position'].x-width/2)/self.viewpoint.z,
+                    self.center.y + (self.viewpoint.y + carrier['position'].y-height/2)/self.viewpoint.z,
                     width/self.viewpoint.z,
                     height/self.viewpoint.z
                 )
@@ -225,8 +226,8 @@ class Visualization:
                 self.screen,
                 'orange',
                 pygame.Rect(
-                    self.viewpoint.x + self.center.x + (carrier['position'].x-width*0.8/2)/self.viewpoint.z,
-                    self.viewpoint.y + self.center.y + (carrier['position'].y-height*0.8/2)/self.viewpoint.z,
+                    self.center.x + (self.viewpoint.x + carrier['position'].x-width*0.8/2)/self.viewpoint.z,
+                    self.center.y + (self.viewpoint.y + carrier['position'].y-height*0.8/2)/self.viewpoint.z,
                     width*0.8*carrier['fill']/self.viewpoint.z,
                     height*0.8/self.viewpoint.z
                 )
@@ -237,7 +238,7 @@ class Visualization:
                 self.screen.blit(
                     text,
                     text.get_rect(
-                        center=(self.viewpoint.x,self.viewpoint.y) + self.center + carrier['position']/self.viewpoint.z + (0,-1.3*height/self.viewpoint.z)
+                        center=self.center + (self.view + carrier['position'])/self.viewpoint.z + (0,-1.3*height/self.viewpoint.z)
                     )
                 )
 
@@ -246,6 +247,9 @@ class Visualization:
         text = font.render("W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out",True,'black')
         self.screen.blit(text,text.get_rect(left=200,top=50))
 
+    def draw_cursor(self):
+        pygame.draw.circle(self.screen,'blue',self.center,10,1)
+        
     def check_user_input(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -264,6 +268,7 @@ class Visualization:
         if keys[pygame.K_d]:
             self.viewpoint.x += 300*self.dt
         self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
+        self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
 
     def run(self):
 
@@ -282,6 +287,7 @@ class Visualization:
             self.draw_stations()
             self.draw_carriers()
             self.draw_user_input()
+            self.draw_cursor()
 
 
             pygame.display.flip()
