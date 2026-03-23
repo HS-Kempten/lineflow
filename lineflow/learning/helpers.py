@@ -9,26 +9,19 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 def make_stacked_vec_env(line, simulation_end, reward="uptime", n_envs=10, n_stack=5):
 
-    if n_envs > 1:
-        env = make_vec_env(
-            env_id=LineSimulation,
-            n_envs=n_envs,
-            vec_env_cls=SubprocVecEnv,
-            vec_env_kwargs={
-                'start_method': 'fork',
-            },
-            env_kwargs={
-                "line": line,
-                "simulation_end": simulation_end,
-                "reward": reward,
-            }
-        )
-    else:
-        env = LineSimulation(
-            line=line,
-            simulation_end=simulation_end,
-            reward=reward,
-        )
+    env = make_vec_env(
+        env_id=LineSimulation,
+        n_envs=n_envs,
+        vec_env_cls=SubprocVecEnv,
+        vec_env_kwargs={
+            'start_method': 'fork',
+        },
+        env_kwargs={
+            "line": line,
+            "simulation_end": simulation_end,
+            "reward": reward,
+        }
+    )
 
     if n_stack > 1:
 

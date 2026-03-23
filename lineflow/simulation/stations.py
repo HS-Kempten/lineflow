@@ -201,6 +201,12 @@ class Station(StationaryObject):
     def _add_info(self, data_dict):
         pass
 
+    def _is_nok_part(self, component):
+        return self.random.choice(
+            [True, False], 
+            p=[component.nok_probability, 1 - component.nok_probability],
+        )
+
     def _draw_n_workers(self, screen):
         if not self.is_automatic:
             font = pygame.font.SysFont(None, 14)
@@ -371,9 +377,9 @@ class Assembly(Station):
         buffer_in=None,
         buffer_out=None,
         buffer_component=None,
+        buffer_return=None,
         processing_time=5,
         position=None,
-        buffer_return=None,
         processing_std=None,
         NOK_part_error_time=2,
         worker_pool=None,
@@ -394,8 +400,15 @@ class Assembly(Station):
         if buffer_out is not None:
             self._connect_to_output(buffer_out)
 
+        self.buffer_component = []
+
         if buffer_component is not None:
-            self.buffer_component = buffer_component.connect_to_output(self)
+
+            if isinstance(buffer_component, Buffer):
+                buffer_component = [buffer_component]
+
+            for buffer in buffer_component:
+                self._connect_to_component_input(buffer)
 
         if buffer_return is not None:
             self.buffer_return = buffer_return.connect_to_input(self)
@@ -420,7 +433,7 @@ class Assembly(Station):
 
     def connect_to_component_input(self, station, *args, **kwargs):
         buffer = Buffer(name=f"Buffer_{station.name}_to_{self.name}", *args, **kwargs)
-        self.buffer_component = buffer.connect_to_output(self)
+        self._connect_to_component_input(buffer)
         station._connect_to_output(buffer)
 
     def connect_to_component_return(self, station, *args, **kwargs):
@@ -428,13 +441,21 @@ class Assembly(Station):
         self.buffer_return = buffer.connect_to_input(self)
         station._connect_to_input(buffer)
 
+    def _connect_to_component_input(self, buffer):
+        self.buffer_component.append(buffer.connect_to_output(self))
+
     def _has_invalid_components_on_carrier(self, carrier):
         """
         Checks if any of the components on the carrier is not valid for assembly. In this case,
         `True` is returned. Otherwise, `False` is returned.
         """
         for component in carrier:
+            # Check assembly condition
             if not component.is_valid_for_assembly(self.name):
+                return True
+
+            # Check if part is self._is_nok_part(component):
+            if self._is_nok_part(component):
                 return True
         return False
 
@@ -458,41 +479,50 @@ class Assembly(Station):
                 # Update current_carrier and count parts of carrier
                 self.state['carrier'].update(carrier.name)
 
-                # Run until carrier with components each having a valid assembly condition is
-                # received
-                while True:
-                    # Wait to get component
-                    carrier_component = yield self.env.process(self.buffer_component())
-                    self.state['carrier_component'].update(carrier_component.name)
 
-                    # Check component
-                    if self._has_invalid_components_on_carrier(carrier_component):
-                        yield self.env.process(self.set_to_error())
-                        yield self.env.timeout(self.NOK_part_error_time)
-                        self.state['n_scrap_parts'].increment()
+                carrier_components = []
+                for buffer_component in self.buffer_component:
+                    # Run until carrier with components each having a valid assembly condition is
+                    # received
+                    while True:
+                        # Wait to get component
+                        carrier_component = yield self.env.process(buffer_component())
+                        self.state['carrier_component'].update(carrier_component.name)
 
-                        # send carrier back
-                        if hasattr(self, 'buffer_return'):
-                            carrier_component.parts.clear()
-                            yield self.env.process(self.buffer_return(carrier_component))
-                        yield self.env.process(self.set_to_waiting())
-                        continue
+                        # Check component
+                        if self._has_invalid_components_on_carrier(carrier_component):
+                            yield self.env.process(self.set_to_error())
+                            yield self.env.timeout(self.NOK_part_error_time)
+                            self.state['n_scrap_parts'].increment()
 
-                    else:
-                        # All components are valid, proceed with assembly
-                        break
+                            # send carrier back
+                            if hasattr(self, 'buffer_return'):
+                                carrier_component.parts.clear()
+                                yield self.env.process(self.buffer_return(carrier_component))
+                            yield self.env.process(self.set_to_waiting())
+                            continue
+
+                        else:
+                            # All components are valid, proceed with assembly
+                            carrier_components.append(carrier_component)
+                            break
 
                 # Process components
                 yield self.env.process(self.set_to_work())
+
+                add_time = sum(
+                    [c.get_additional_processing_time(self.name) for c in carrier_components]
+                )
                 processing_time = self._sample_exp_time(
-                    time=self.processing_time + carrier.get_additional_processing_time(self.name),
+                    time=self.processing_time + add_time,
                     scale=self.processing_std,
                 )
                 yield self.env.timeout(processing_time)
                 self.state['processing_time'].update(processing_time)
 
-                for component in carrier_component:
-                    carrier.assemble(component)
+                for carrier_component in carrier_components:
+                    for component in carrier_component:
+                        carrier.assemble(component)
 
                 # Release workers
                 self.release_workers()
@@ -513,13 +543,20 @@ class Assembly(Station):
 
 
 class Process(Station):
-    '''
-    Process stations take a carrier as input, process the carrier, and push it onto buffer_out
+    """
+    Process stations take a carrier as input, process the carrier, and push it onto `buffer_out`
+
     Args:
-        processing_std: Standard deviation of the processing time
-        rework_probability: Probability of a carrier to be reworked (takes 2x the time)
+        name (str): Name of the station
+        buffer_in (lineflow.simulation.connectors.Buffer, optional): Buffer in
+        buffer_out (lineflow.simulation.connectors.Buffer, optional): Buffer out
+        processing_time (float): Time it takes to process the carrier (carrier needs to be
+            available)
+        processing_std (float): Standard deviation of the processing time
+        rework_probability (float): Probability of a carrier to be reworked (takes 2x the time)
         position (tuple): X and Y position in visualization
-    '''
+        worker_pool (lineflow.simulation.stations.WorkerPool, optional): Worker pool to
+    """
 
     def __init__(
         self,
@@ -531,7 +568,6 @@ class Process(Station):
         processing_std=None,
         rework_probability=0,
         worker_pool=None,
-
     ):
 
         super().__init__(
@@ -603,6 +639,182 @@ class Process(Station):
                 yield self.turn_off()
 
 
+class SequentialProcess(Process):
+    """
+    SequentialProcess stations take a carrier as input, process each part on the carrier
+    sequentially, and push the carrier onto buffer_out. The processing time of each part can be
+    different and is determined by the part specifications. If a part does not fulfill the assembly
+    condition, it is scrapped and the carrier is reworked (takes 2x the time). If connected to a
+    worker pool, workers are released and requested for each part on the carrier. 
+
+    The processing time for each part is the sum of the processing time of the station (which is 0
+    by default) and the additional processing time specified in the part specifications for this
+    station. The standard deviation of the processing time is determined by the `processing_std`
+    attribute of the station and is applied to the total processing time of the part.
+
+    Args:
+        name (str): Name of the station
+        buffer_in (lineflow.simulation.connectors.Buffer, optional): Buffer in
+        buffer_out (lineflow.simulation.connectors.Buffer, optional): Buffer out
+        processing_time (float): Time it takes to process each part on the carrier 
+        processing_std (float): Standard deviation of the processing time
+        position (tuple): X and Y position in visualization
+        worker_pool (lineflow.simulation.stations.WorkerPool, optional): Worker pool to
+
+
+    Example:
+
+    Assume a source produces carriers of type `Type_A` with two parts `Part1` and `Part2` that have the
+    following specifications:
+
+    ```python
+    carrier_specs = {
+        'Type_A': {
+            'Part1': {
+                'Process1': {
+                    'extra_processing_time': 20,
+                    'error_probability': 0.0,
+                    'error_time': 0,
+                }, 
+                'Process2': {
+                    'extra_processing_time': 5,
+                    'error_probability': 0.0,
+                    'error_time': 0,
+                    }
+            },
+            'Part2': {
+                'Process2': {
+                    'extra_processing_time': 8,
+                    'error_probability': 0.5,
+                    'error_time': 10,
+                }
+            }
+        },
+    }
+    ```
+
+    Assume the processes are initialized as follows:
+
+    ```python
+    p1 = SequentialProcess(
+        name='Process1',
+        processing_time=0,
+        processing_std=0.1,
+        rework_probability=0.5,
+    )
+
+    p2 = SequentialProcess(
+        name='Process2',
+        processing_time=10,
+        processing_std=0.1,
+        rework_probability=0.5,
+    )
+    ```
+
+    Both processes process all parts. 
+
+    At `Process1`, a carrier of type `Type_A` with a processing time of 
+
+    $$
+    \\underbrace{0 + 20}_{\\mathrm{Part1}} + \\underbrace{0 + 0}_{\\mathrm{Part2}} = 20
+    $$
+
+
+    At `Process2`, a carrier of type `Type_A` with a processing time of 
+
+    $$
+    \\underbrace{10 + 5}_{\\mathrm{Part1}} + \\underbrace{10 + 8}_{\\mathrm{Part2}} = 33
+    $$
+
+    """
+    def __init__(
+        self,
+        name,
+        buffer_in=None,
+        buffer_out=None,
+        position=None,
+        worker_pool=None,
+        processing_time=0,
+        processing_std=0.1,
+        error_std=0,
+    ):
+
+        super().__init__(
+            name=name,
+            buffer_in=buffer_in,
+            buffer_out=buffer_out,
+            processing_time=processing_time,
+            position=position,
+            processing_std=processing_std,
+            rework_probability=0,
+            worker_pool=worker_pool,
+        )
+
+        self.processing_std = processing_std
+        self.error_std = error_std
+        assert self.processing_std >= 0 and self.processing_std <= 1
+        assert self.error_std >= 0 and self.error_std <= 1
+
+    def run(self):
+
+        while True:
+            if self.is_on():
+                # Wait to get part from buffer_in
+                yield self.env.process(self.set_to_waiting())
+                carrier = yield self.env.process(self.buffer_in())
+                self.state['carrier'].update(carrier.name)
+
+                yield self.env.timeout(2)
+
+                total_processing_time = 0
+
+                for part in carrier.get_parts_for_station(self.name):
+
+                    yield self.env.process(self.request_workers())
+                    self.state['n_workers'].update(self.n_workers)
+
+                    error_proba = part.get_error_probability(self.name)
+
+                    if self.random.uniform(0, 1) < error_proba:
+                        yield self.env.process(self.set_to_error())
+                        # Release workers
+                        self.release_workers()
+                        self.state['n_workers'].update(self.n_workers)
+                        error_time = self._sample_exp_time(
+                            time=part.get_error_time(self.name),
+                            scale=self.error_std,
+                            rework_probability=self.rework_probability,
+                        )
+
+                        yield self.env.timeout(error_time)
+                        total_processing_time += error_time
+                        yield self.env.process(self.set_to_waiting())
+                        yield self.env.process(self.request_workers())
+                        self.state['n_workers'].update(self.n_workers)
+
+                    yield self.env.process(self.set_to_work())
+
+                    processing_time = self._sample_exp_time(
+                        time=self.processing_time+part.get_processing_time(self.name),
+                        scale=self.processing_std,
+                        rework_probability=self.rework_probability,
+                    )
+                    yield self.env.timeout(processing_time)
+                    total_processing_time += processing_time
+                    # Release workers
+                    self.release_workers()
+                    yield self.env.process(self.set_to_waiting())
+
+                self.state['processing_time'].update(total_processing_time)
+
+                # Wait to place carrier to buffer_out
+                yield self.env.process(self.buffer_out(carrier))
+                self.state['carrier'].update(None)
+
+            else:
+                yield self.turn_off()
+
+
 class Source(Station):
     '''
     Source station generating parts on carriers.
@@ -629,6 +841,8 @@ class Source(Station):
         unlimited_carriers (bool): If source has the ability to create unlimited carriers
         carrier_capacity (int): Defines how many parts can be assembled on a carrier. If set to
             default (infinity) or > 15, carrier will be visualized with one part.
+        nok_probability (float): Between 0 and 1, probability of a part on the carrier being labled
+            as nok
         carrier_min_creation (int): Minimum number of carriers of same spec created subsequentially
         carrier_max_creation (int): Maximum number of carriers of same spec created subsequentially
 
@@ -649,6 +863,7 @@ class Source(Station):
         carrier_capacity=np.inf,
         carrier_specs=None,
         carrier_min_creation=1,
+        nok_probability=0.0,
         carrier_max_creation=None,
     ):
         super().__init__(
@@ -685,6 +900,8 @@ class Source(Station):
         self._carrier_counter = 0
 
         self.init_waiting_time = waiting_time
+        self.nok_probability = nok_probability
+        assert 0 <= self.nok_probability <= 1, "nok_probability must be between 0 and 1"
 
     def init_state(self):
 
@@ -724,14 +941,6 @@ class Source(Station):
 
     def create_carrier(self):
 
-        if self._carrier_counter == 0:
-            carrier_spec = self.random.choice(list(self.carrier_specs.keys()))
-            self.state['carrier_spec'].update(carrier_spec)
-            self._carrier_counter = self.random.randint(
-                self.carrier_min_creation, 
-                self.carrier_max_creation + 1,
-            )
-
         carrier_spec = self.state['carrier_spec'].to_str()
 
         name = f'{self.name}_{carrier_spec}_{self.carrier_id}'
@@ -739,28 +948,42 @@ class Source(Station):
             self.env, 
             name=name, 
             capacity=self.carrier_capacity, 
-            part_specs=self.carrier_specs[carrier_spec],
         )
         self.carrier_id += 1
-        self._carrier_counter -= 1
 
         return carrier
 
-    def create_parts(self, carrier):
+    def get_current_carrier_spec(self):
+        if self._carrier_counter == 0:
+            carrier_spec = self.random.choice(list(self.carrier_specs.keys()))
+            self.state['carrier_spec'].update(carrier_spec)
+            self._carrier_counter = self.random.randint(
+                self.carrier_min_creation, 
+                self.carrier_max_creation + 1,
+            )
+        self.carrier_id += 1
+        self._carrier_counter -= 1
+
+        return self.carrier_specs[self.state['carrier_spec'].to_str()].copy()
+
+
+    def create_parts(self, carrier, carrier_spec):
         """
         Creates the parts based on the part_specs attribute
         For each dict in the part_specs list one part is created
         """
 
         parts = []
-        for part_id, (part_name, part_spec) in enumerate(carrier.part_specs.items()):
+        for part_id, (part_name, part_spec) in enumerate(carrier_spec.items()):
             part = Part(
                 env=self.env,
                 name=f"{carrier.name}_{part_name}_{part_id}",
                 specs=part_spec,
+                nok_probability=self.nok_probability,
             )
             part.create(self.position)
             parts.append(part)
+
         return parts
 
     def assemble_parts_on_carrier(self, carrier, parts):
@@ -770,9 +993,9 @@ class Source(Station):
         for part in parts:
             carrier.assemble(part)
 
-    def assemble_carrier(self, carrier):
+    def assemble_carrier(self, carrier, carrier_spec):
 
-        parts = self.create_parts(carrier)
+        parts = self.create_parts(carrier, carrier_spec)
         self.state['part'].update(parts[0].name)
 
         processing_time = self._sample_exp_time(
@@ -806,8 +1029,10 @@ class Source(Station):
                 else:
                     carrier = yield self.env.process(self.buffer_in())
 
+                carrier_spec = self.get_current_carrier_spec()
+
                 yield self.env.process(self.set_to_work())
-                carrier = yield self.env.process(self.assemble_carrier(carrier))
+                carrier = yield self.env.process(self.assemble_carrier(carrier, carrier_spec))
 
                 yield self.env.process(self.set_to_waiting())
                 yield self.env.process(self.buffer_out(carrier))
@@ -1097,7 +1322,6 @@ class Magazine(Station):
         actionable_magazine=True,
         carrier_getting_time=2,
         carriers_in_magazine=0,
-        carrier_specs=None,
         carrier_min_creation=1,
         carrier_max_creation=None,
     ):
@@ -1115,10 +1339,6 @@ class Magazine(Station):
         self.actionable_magazine = actionable_magazine
         self.init_carriers_in_magazine = carriers_in_magazine
         self.carrier_getting_time = carrier_getting_time
-
-        if carrier_specs is None:
-            carrier_specs = {"carrier": {"part": {}}}
-        self.carrier_specs = carrier_specs
 
         self.unlimited_carriers = unlimited_carriers
         self.carrier_capacity = carrier_capacity
@@ -1161,18 +1381,16 @@ class Magazine(Station):
 
     def create_carrier(self):
         if self._carrier_counter == 0:
-            self._current_carrier_spec = self.random.choice(list(self.carrier_specs.keys()))
             self._carrier_counter = self.random.randint(
                 self.carrier_min_creation, 
                 self.carrier_max_creation + 1,
             )
 
-        name = f'{self.name}_{self._current_carrier_spec}_{self.carrier_id}'
+        name = f'{self.name}_{self.carrier_id}'
         carrier = Carrier(
             self.env, 
             name=name, 
             capacity=self.carrier_capacity, 
-            part_specs=self.carrier_specs[self._current_carrier_spec],
         )
         self.carrier_id += 1
         self._carrier_counter -= 1

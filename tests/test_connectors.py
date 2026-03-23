@@ -95,7 +95,7 @@ class TestBuffer(unittest.TestCase):
         line.run(60)
         df = line.get_observations('Sink')
 
-        index = df[df['carrier'] == 'Magazine_carrier_1'].index
+        index = df[df['carrier'] == 'Magazine_1'].index
         t_end = df.loc[index[0] + 1, 'T_end']
         # First part should be removed after
         # 1 (getting time) + 1 (put) + 15 (transition)+ 1 (put) + 1 (process) + 1 (put) +  15 (transition) + 1 (get) + 1 (remove)
@@ -104,7 +104,7 @@ class TestBuffer(unittest.TestCase):
             t_end,
             1 + 1 + 15 + 1 + 1 + 1 + 15 + 1 + 1)
 
-        index = df[df['carrier'] == 'Magazine_carrier_2'].index
+        index = df[df['carrier'] == 'Magazine_2'].index
         t_end = df.loc[index[0] + 1, 'T_end']
         # Second part should be removed after
         # 37 (time first carrier needs with removal) + 15 / 3 (time second

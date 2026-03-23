@@ -25,28 +25,35 @@ If you use our work in your research, please consider citing us with
 
 ```
 @InProceedings{pmlr-v267-muller25c,
-  title = 	 {{L}ine{F}low: A Framework to Learn Active Control of Production Lines},
-  author =       {M\"{u}ller, Kai and Wenzel, Martin and Windisch, Tobias},
-  booktitle = 	 {Proceedings of the 42nd International Conference on Machine Learning},
-  pages = 	 {45212--45235},
-  year = 	 {2025},
-  editor = 	 {Singh, Aarti and Fazel, Maryam and Hsu, Daniel and Lacoste-Julien, Simon and Berkenkamp, Felix and Maharaj, Tegan and Wagstaff, Kiri and Zhu, Jerry},
-  volume = 	 {267},
-  series = 	 {Proceedings of Machine Learning Research},
-  month = 	 {13--19 Jul},
-  publisher =    {PMLR},
-  url = 	 {https://proceedings.mlr.press/v267/muller25c.html},
+  title = {{L}ine{F}low: A Framework to Learn Active Control of Production Lines},
+  author = {M\"{u}ller, Kai and Wenzel, Martin and Windisch, Tobias},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning},
+  pages = {45212--45235},
+  year = {2025},
+  editor = {Singh, Aarti and Fazel, Maryam and Hsu, Daniel and Lacoste-Julien, Simon and Berkenkamp, Felix and Maharaj, Tegan and Wagstaff, Kiri and Zhu, Jerry},
+  volume = {267},
+  series = {Proceedings of Machine Learning Research},
+  month = {13--19 Jul},
+  publisher = {PMLR},
+  url = {https://proceedings.mlr.press/v267/muller25c.html},
 }
 
 ```
 
 ## Authors
+`LineFlow` was originally developed at the [University of Applied Sciences
+Kempten](http://hs-kempten.de/ims) by:
 
-- [Kai Müller](https://mueller-kai.github.io) (University of Applied Sciences, Kempten)
+- [Kai Müller](https://mueller-kai.github.io)  (University of Applied Sciences, Kempten)
 - [Tobias Windisch](https://www.tobias-windisch.de) (University of Applied Sciences, Kempten)
-- Martin Wenzel (University of Applied Sciences, Kempten)
-- Marie Kraus (University of Applied Sciences, Kempten)
+- [Martin Wenzel](https://www.hs-kempten.de/personen/martin-wenzel)  (University of Applied Sciences, Kempten)
+
+`LineFlow` gratefully acknowledges contributions from:
+
+- Kilian Führer
+- [Andreas Fritz](https://www.hs-kempten.de/personen/andreas-fritz) 
+- Marie Kraus
 
 ## Funding
 
-The research behind LineFlow is funded by the Bavarian state ministry of research. Learn more [here](https://kefis.fza.hs-kempten.de/de/forschungsprojekt/599-lineflow).
+The research behind `LineFlow` is funded by the Bavarian state ministry of research. Learn more [here](https://kefis.fza.hs-kempten.de/de/forschungsprojekt/599-lineflow).

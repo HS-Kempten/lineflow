@@ -122,6 +122,7 @@ class SimpleLineWithValidProcessingCondition(Line):
         )
 
 
+
 class SimpleLineWithSendingBack(Line):
 
     def build(self):
@@ -222,8 +223,8 @@ class TestAssembly(unittest.TestCase):
         # 5 (processing) + 1 (put) + 1 (get next one)
         self.assertEqual(
             self.df_valid[
-                (self.df_valid['carrier'] == 'Magazine Source_carrier_2') &
-                (self.df_valid['carrier_component'] == 'Magazine Component Source_carrier_2')
+                (self.df_valid['carrier'] == 'Magazine Source_2') &
+                (self.df_valid['carrier_component'] == 'Magazine Component Source_2')
             ].iloc[0]["T_start"],
             26
         )
@@ -235,3 +236,75 @@ class TestAssembly(unittest.TestCase):
 
         # Should have multiple carrier_components
         self.assertGreater(len(self.df["carrier_component"].unique()), 2)
+
+
+class TestMultilpleComponentBuffers(unittest.TestCase):
+
+    class AssemblyWithMultipleComponentBuffers(Line):
+    
+        def build(self):
+    
+            source_main = Source(
+                'Source',
+                processing_time=2,
+                processing_std=0,
+                unlimited_carriers=True,
+                carrier_capacity=1+3,
+                position=(100, 200),
+            )
+    
+            assembly = Assembly(
+                'A',
+                position=(300, 200),
+            )
+    
+    
+            sc_1 = Source('SC1',
+                unlimited_carriers=True,
+                position=(220, 400),
+                processing_time=7,
+                nok_probability=0.2,
+                carrier_specs={
+                    'T1': {'Part1': {'A': {"extra_processing_time": 1}}},
+                    'T2': {'Part1': {'A': {"extra_processing_time": 4}}}
+                },
+            ) 
+    
+            sc_2 = Source('SC2',
+                unlimited_carriers=True,
+                position=(300, 400),
+                processing_time=2,
+                nok_probability=0.1,
+                carrier_specs={
+                    'T1': {'Part2': {'A': {"extra_processing_time": 4}}},
+                    'T2': {'Part2': {'A': {"extra_processing_time": 2}}}
+                },
+            ) 
+    
+            sc_3 = Source('SC3',
+                position=(380, 400),
+                processing_time=5,
+                unlimited_carriers=True,
+                carrier_specs={
+                    'T1': {'Part3': {'A': {"extra_processing_time": 3}}},
+                },
+            ) 
+    
+            assembly.connect_to_component_input(sc_1, capacity=4)
+            assembly.connect_to_component_input(sc_2, capacity=4)
+            assembly.connect_to_component_input(sc_3, capacity=4)
+    
+            sink = Sink(
+                'Sink',
+                processing_time=1,
+                processing_std=0,
+                position=(600, 200),
+            )
+            assembly.connect_to_input(source_main)
+            assembly.connect_to_output(sink)
+    
+    def test_run(self):
+        line = TestMultilpleComponentBuffers.AssemblyWithMultipleComponentBuffers()
+        line.run(400, visualize=False)
+        df = line.get_observations('A')
+        self.assertGreaterEqual(df.n_scrap_parts.max(), 1)

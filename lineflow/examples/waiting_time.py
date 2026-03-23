@@ -7,7 +7,6 @@ from lineflow.simulation import (
 )
 
 
-
 def make_agent_fixed_waiting_time(line, waiting_time):
     waiting_times = line['S_component'].state['waiting_time'].categories
 
