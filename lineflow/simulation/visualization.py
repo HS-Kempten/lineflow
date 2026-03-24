@@ -13,12 +13,9 @@ class Viewpoint:
         zoom=1,
     ):
 
-
         if size is None:
         	size = (1410, 1000)
         self.paper = pygame.Surface(size)
-
-
         self.screen = pygame.display.set_mode((1280, 720))
 
         if position is None:
@@ -48,7 +45,7 @@ class Visualization:
         connection=None,
         stop_event=None,
         halt_event=None,
-        ):
+    ):
 
         if size is None:
             size = (1280, 720)
@@ -70,9 +67,6 @@ class Visualization:
         self.info = None
         self.actions = None
         self.connection_data = []
-
-    def teardown(self):
-        self.running = False
 
     def clear(self):
         self.screen.fill('white')
@@ -101,6 +95,7 @@ class Visualization:
                 self.info = item
             elif item['type'] == 'actions':
                 self.actions = item
+
     def check_connection(self):
         self.get_from_connection()
         self.sort_connection_data()
@@ -257,7 +252,7 @@ class Visualization:
                 self.screen.blit(text, text.get_rect(center=(self.center.x, 30+n*22)))
 
     def draw_user_input(self):
-        font = pygame.font.SysFont(None,24)
+        font = pygame.font.SysFont(None, 24)
         text = font.render(
             "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Halt Simulation",
             True,
@@ -296,10 +291,10 @@ class Visualization:
         pygame.init()
         self.screen = pygame.display.set_mode(self.size)
         self.clock = pygame.time.Clock()
-        self.running = True
-        while self.running:
+
+        while True:
             if self.stop_event.is_set():
-                self.teardown()
+                break
 
             self.check_user_input()
             self.check_connection()

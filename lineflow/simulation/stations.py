@@ -1152,7 +1152,7 @@ class Switch(Station):
         pos_in = pos_buffer_in + 0.5*(self.position - pos_buffer_in)
         pos_out = pos_buffer_out + 0.5*(self.position - pos_buffer_out)
 
-        data['pos_in_out'] = [pos_in,pos_out]
+        data['pos_in_out'] = [pos_in, pos_out]
         return data
 
     def _connect_to_input(self, buffer):

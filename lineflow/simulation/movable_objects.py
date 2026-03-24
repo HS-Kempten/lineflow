@@ -176,7 +176,7 @@ class Carrier(MovableObject):
 
     def get_visualization_data(self, with_text=True):
         parts = len(self.parts)
-        if self.capacity is np.inf and parts != 0:
+        if np.isinf(self.capacity) and parts != 0:
             fill = 1
         else:
             fill = parts/self.capacity
