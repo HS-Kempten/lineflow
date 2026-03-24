@@ -49,7 +49,12 @@ class Line:
         self._info = info
 
         self.reset(random_state=random_state)
+        self.data = []
 
+    def _init_visualization(self):
+        """
+        Initializes the visualization process and the communication channels.
+        """
         self.stop_event = Event()
         self.halt_event = Event()
         self.connection = Queue()
@@ -57,7 +62,6 @@ class Line:
             target=start_visualization,
             args=(self.connection, self.stop_event, self.halt_event)
         )
-        self.data = []
 
     @property
     def name(self):
@@ -185,53 +189,7 @@ class Line:
         for o in self._objects.values():
             o.register(self.env)
 
-    def _draw(self, actions=None):
-
-        self.viewpoint.check_user_input()
-
-        self.viewpoint.clear()
-        
-        # Draw objects, first connectors, then stations
-        self._draw_connectors()
-        self._draw_stations()
-        
-        self.viewpoint._draw()
-
-        if actions is not None:
-            self._draw_actions(actions)
-
-        self._draw_info()
-
-        pygame.display.flip()
-
-    def _draw_info(self):
-
-        font = pygame.font.SysFont(None, 20)
-
-        time = font.render('T={:.2f}'.format(self.env.now), True, 'black')
-        n_parts = font.render(
-            f'#Parts={self.get_n_parts_produced()}', True, 'black'
-        )
-        self.viewpoint.screen.blit(time, time.get_rect(center=(30, 30)))
-        self.viewpoint.screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
-
-    def _draw_actions(self, actions):
-        font = pygame.font.SysFont(None, 20)
-        actions = font.render(f'{actions}', True, 'black')
-        self.viewpoint.screen.blit(actions, actions.get_rect(center=(500, 30)))
-
-    def _draw_stations(self):
-        self._draw_objects_of_type(Station)
-
-    def _draw_connectors(self):
-        self._draw_objects_of_type(Connector)
-
-    def _draw_objects_of_type(self, object_type):
-        for _, obj in self._objects.items():
-            if isinstance(obj, object_type):
-                obj._draw(self.viewpoint.paper)
-
-    def give_data(self, actions=None):
+    def _send_data_to_visualization(self, actions=None):
         if not self.stop_event.is_set():
             self.data = []
             self._add_connectors()
@@ -295,15 +253,6 @@ class Line:
         x, y = self._get_object_positions()
         return max(x), max(y)
 
-    def setup_draw(self):
-        pygame.init()
-
-        max_x, max_y = self._adjust_positions()
-        for o in self._objects.values():
-            o.setup_draw()
-
-        self.viewpoint = Viewpoint(size=(max_x+100, max_y+100))
-
     def apply(self, values):
         for object_name in values.keys():
             self._objects[object_name].apply(values[object_name])
@@ -347,7 +296,6 @@ class Line:
         agent=None,
         show_status=True,
         visualize=False,
-        capture_screen=False,
     ):
         """
         Args:
@@ -360,9 +308,9 @@ class Line:
             capture_screen (bool): Captures last Time frame when screen should be recorded
         """
         if visualize:
+            self._init_visualization()
             self.visualization_process.start()
             self.setup_connectors()
-            #self.setup_draw()
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:
@@ -377,7 +325,7 @@ class Line:
         )
 
         while self.env.now < simulation_end:
-            if self.halt_event.is_set():
+            if visualize and self.halt_event.is_set():
                 break
             pbar.update(self.env.now - now)
             now = self.env.now
@@ -392,14 +340,9 @@ class Line:
                 self.apply(actions)
 
             if visualize:
-                self.give_data(actions)
-                #self._draw(actions)
-
-        #if capture_screen and visualize:
-        #    pygame.image.save(self.viewpoint.screen, f"{self.name}.png")
+                self._send_data_to_visualization(actions)
 
         if visualize:
-            #self.viewpoint.teardown()
             self.stop_event.set()
             self.visualization_process.join()
 
