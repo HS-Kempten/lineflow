@@ -77,7 +77,7 @@ class Buffer(Connector):
     def n_carriers(self):
         return len(self.carriers)
 
-    def setup_draw(self):
+    def setup_positions(self):
 
         vec_direction = np.array(
             [
@@ -114,28 +114,6 @@ class Buffer(Connector):
 
             self._positions_arrow[i] = arrowhead
             
-    def _draw(self, screen):
-
-        pygame.draw.line(
-            screen,
-            self.color,
-            self._position_input,
-            self._position_output,
-            width=10,
-        )
-
-        # Draw slots
-        for i, slot in enumerate(self._positions_slots):
-            pygame.draw.circle(screen, 'gray', slot, 10)
-
-        # Draw arrowheads
-        for i, arrow in enumerate(self._positions_arrow[:-1]):
-            pygame.draw.polygon(screen, 'black', arrow)
-
-        # Draw carriers
-        for carrier in self.carriers.values():
-            carrier.draw(screen)
-
     def _add(self, data_list):
         data_list.append(dict(type='connector',start=self._position_input,end=self._position_output,n_slots=self.capacity))
         for carrier in self.carriers.values():

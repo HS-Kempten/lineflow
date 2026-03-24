@@ -29,21 +29,10 @@ class MovableObject(object):
     def creation_time(self):
         return self['creation_time']
 
-    def draw(self, screen, with_text=True):
-
-        self._draw_shape(screen)
-        if with_text:
-            font = pygame.font.SysFont(None, 12)
-            text = font.render(self.name, True, 'blue')
-            screen.blit(text, text.get_rect(center=self._position + (0, -1.3*self._height)))
-
     def _add(self, data_list, with_text=True):
         self._add_shape(data_list)
         if with_text:
             data_list[-1]['name'] = self.name
-
-    def _draw_shape(self, screen):
-        raise NotImplementedError()
 
     def _add_shape(self, data_list):
         raise NotImplementedError()
@@ -150,10 +139,6 @@ class Part(MovableObject):
             raise ValueError('Expect pygame vector as position')
         self.move(position)
 
-    def _draw(self, screen, x, y, width, height):
-        _part_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(screen, self._color, _part_rect, border_radius=1)
-
     def get_processing_time(self, station):
         return self.specs.get(station, {}).get("extra_processing_time", 0)
 
@@ -193,25 +178,6 @@ class Carrier(MovableObject):
             raise ValueError('Carrier is already full. Check your carrier_capacity')
 
         self.parts[part.name] = part
-
-    def _draw_shape(self, screen):
-
-        self._rect = pygame.Rect(
-            self._position.x - self._width / 2,
-            self._position.y - self._height / 2,
-            self._width,
-            self._height,
-        )
-        pygame.draw.rect(screen, self._color, self._rect, border_radius=2)
-
-        for i, part in enumerate(self):
-            part._draw(
-                screen,
-                x=self._position.x+0.1*self._width - self._width / 2 + i*(self._width_part),
-                y=self._position.y - self._height_part / 2,
-                width=self._width_part,
-                height=self._height_part,
-            )
 
     def _add_shape(self, data_list):
         parts = len(self.parts)

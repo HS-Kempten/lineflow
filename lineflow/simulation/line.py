@@ -202,7 +202,7 @@ class Line:
     def setup_connectors(self):
         for _, obj in self._objects.items():
             if isinstance(obj, Connector):
-                obj.setup_draw()
+                obj.setup_positions()
 
     def _add_stations(self):
         self._add_objects_of_type(Station)
