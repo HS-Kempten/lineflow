@@ -170,26 +170,26 @@ class Station(StationaryObject):
         else:
             return 1.0
 
-    def _add(self, data_list):
-        data = dict(type='station',name=self.name,position=self.position,mode=self.state['mode'].to_str())
-        self._add_info(data)
-        data_list.append(data)
+    def get_visualization_data(self):
+        data = dict(
+            type='station',
+            name=self.name,
+            position=self.position,
+            mode=self.state['mode'].to_str()
+        )
+        data = self._add_visualization_info(data)
+        return data
 
-    def _add_info(self, data_dict):
-        pass
+    def _add_visualization_info(self, data):
+        if not self.is_automatic:
+            data['worker_skill'] = str(self.worker_skill)
+        return data
 
     def _is_nok_part(self, component):
         return self.random.choice(
             [True, False], 
             p=[component.nok_probability, 1 - component.nok_probability],
         )
-
-    def _add_n_workers(self, data_dict):
-        if not self.is_automatic:
-            data_dict['worker_skill'] = str(self.worker_skill)
-
-    def _add_n_carriers(self, data_dict):
-        data_dict['magazine'] = self.state['carriers_in_magazine'].to_str()
 
     def get_performance_coefficient(self):
         return compute_performance_coefficient(self.worker_skill)
@@ -411,9 +411,6 @@ class Assembly(Station):
                 return True
         return False
 
-    def _add_info(self, data_dict):
-        self._add_n_workers(data_dict)
-
     def run(self):
 
         while True:
@@ -548,9 +545,6 @@ class Process(Station):
         self.state['carrier'].update(None)
         self.state['processing_time'].update(self.processing_time)
         self.state['n_workers'].update(self.n_workers)
-
-    def _add_info(self, data_dict):
-        self._add_n_workers(data_dict)
 
     def run(self):
 
@@ -1150,14 +1144,16 @@ class Switch(Station):
             self.state['index_buffer_out'].value
         ].__self__._positions_slots[0]
 
-    def _add_info(self, data_dict):
+    def _add_visualization_info(self, data):
+        data = super()._add_visualization_info(data)
         pos_buffer_in = self._get_buffer_in_position()
         pos_buffer_out = self._get_buffer_out_position()
 
         pos_in = pos_buffer_in + 0.5*(self.position - pos_buffer_in)
         pos_out = pos_buffer_out + 0.5*(self.position - pos_buffer_out)
 
-        data_dict['pos_in_out'] = [pos_in,pos_out]
+        data['pos_in_out'] = [pos_in,pos_out]
+        return data
 
     def _connect_to_input(self, buffer):
         self.buffer_in.append(buffer.connect_to_output(self))
@@ -1366,9 +1362,9 @@ class Magazine(Station):
         self.state['carriers_in_magazine'].increment()
 
     def _update_magazine(self):
-        '''
+        """
         update the magazine according to state
-        '''
+        """
         should = self.state['carriers_in_magazine'].value
         current = len(self.magazine.items)
         diff = should - current
@@ -1378,11 +1374,13 @@ class Magazine(Station):
                 self.magazine.put(carrier)
 
         if diff < 0:
-            for i in range(abs(diff)):
+            for _ in range(abs(diff)):
                 carrier = yield self.magazine.get()
 
-    def _add_info(self, data_dict):
-        self._add_n_carriers(data_dict)
+    def _add_visualization_info(self, data):
+        data = super()._add_visualization_info(data)
+        data['magazine'] = self.state['carriers_in_magazine'].to_str()
+        return data
 
     def get_carrier(self):
         # First check if Magazine is allowed to create unlimited carriers

@@ -117,10 +117,21 @@ class Buffer(Connector):
 
             self._positions_arrow[i] = arrowhead
             
-    def _add(self, data_list):
-        data_list.append(dict(type='connector',start=self._position_input,end=self._position_output,n_slots=self.capacity))
+    def get_visualization_data(self):
+        data = []
+        data.append(
+            dict(
+                type='connector',
+                start=self._position_input,
+                end=self._position_output,
+                n_slots=self.capacity,
+            )
+        )
+
         for carrier in self.carriers.values():
-            carrier._add(data_list)
+            data.append(carrier.get_visualization_data(with_text=True))
+
+        return data
 
     def _sample_put_time(self):
         return self.put_time + self.random.exponential(scale=self.put_std)

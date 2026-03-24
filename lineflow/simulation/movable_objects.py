@@ -29,12 +29,7 @@ class MovableObject(object):
     def creation_time(self):
         return self['creation_time']
 
-    def _add(self, data_list, with_text=True):
-        self._add_shape(data_list)
-        if with_text:
-            data_list[-1]['name'] = self.name
-
-    def _add_shape(self, data_list):
+    def get_visualization_data(self):
         raise NotImplementedError()
 
     def move(self, position):
@@ -179,14 +174,18 @@ class Carrier(MovableObject):
 
         self.parts[part.name] = part
 
-    def _add_shape(self, data_list):
+    def get_visualization_data(self, with_text=True):
         parts = len(self.parts)
         if self.capacity is np.inf and parts != 0:
             fill = 1
         else:
             fill = parts/self.capacity
 
-        data_list.append(dict(type='carrier',position=self._position,fill=fill))
+        data = dict(type='carrier', position=self._position, fill=fill)
+
+        if with_text:
+            data['name'] = self.name
+        return data
 
     def move(self, position):
         """

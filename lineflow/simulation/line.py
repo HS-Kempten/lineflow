@@ -67,6 +67,12 @@ class Line:
             if isinstance(obj, Connector):
                 obj.setup_positions()
 
+        self.visualization_process.start()
+
+    def _close_visualization(self):
+        self.stop_event.set()
+        self.visualization_process.join()
+
 
     @property
     def name(self):
@@ -196,62 +202,25 @@ class Line:
 
     def _send_data_to_visualization(self, actions=None):
         if not self.stop_event.is_set():
-            self.data = []
-            self._add_connectors()
-            self._add_stations()
-            self._add_info()
-            if actions is not None:
-                self._add_actions(actions)
-            self.connection.put(self.data)
+            data = []
 
-    def _add_stations(self):
-        self._add_objects_of_type(Station)
+            for _, obj in self._objects.items():
+                if isinstance(obj, Station):
+                    data.append(obj.get_visualization_data())
 
-    def _add_connectors(self):
-        self._add_objects_of_type(Connector)
+                if isinstance(obj, Connector):
+                    data.extend(obj.get_visualization_data())
 
-    def _add_objects_of_type(self, object_type):
-        for _, obj in self._objects.items():
-            if isinstance(obj, object_type):
-                obj._add(self.data)
-
-    def _add_actions(self, actions):
-        self.data.append(dict(type="actions", actions=actions))
-
-    def _add_info(self):
-        self.data.append(
-            dict(
-                type="info",
-                time=self.env.now,
-                n_parts=self.get_n_parts_produced()
+            data.append(
+                dict(
+                    type="info",
+                    time=self.env.now,
+                    n_parts=self.get_n_parts_produced()
+                )
             )
-        )
-
-    def _get_object_positions(self):
-        x = []
-        y = []
-        for o in self._objects.values():
-            if hasattr(o, "position"):
-                x.append(o.position[0])
-                y.append(o.position[1])
-        return x, y
-
-    def _adjust_positions(self):
-        x, y = self._get_object_positions()
-
-        if min(x) < 100:
-            delta_x = 100 - min(x)
-            for o in self._objects.values():
-                if hasattr(o, "position"):
-                    o.position[0] += delta_x
-        if min(y) < 100:
-            delta_y = 100 - min(y)
-            for o in self._objects.values():
-                if hasattr(o, "position"):
-                    o.position[1] += delta_y
-
-        x, y = self._get_object_positions()
-        return max(x), max(y)
+            if actions is not None:
+                data.append(dict(type="actions", actions=actions))
+            self.connection.put(data)
 
     def apply(self, values):
         for object_name in values.keys():
@@ -308,7 +277,6 @@ class Line:
         """
         if visualize:
             self._init_visualization()
-            self.visualization_process.start()
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:
@@ -342,12 +310,9 @@ class Line:
                 self._send_data_to_visualization(actions)
 
         if visualize:
-            self.stop_event.set()
-            self.visualization_process.join()
+            self._close_visualization()
 
     def get_observations(self, object_name=None):
-        """
-        """
 
         df = self.state.df()
 
