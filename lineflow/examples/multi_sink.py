@@ -62,5 +62,5 @@ class MultiSink(Line):
 if __name__ == '__main__':
     line = MultiSink(realtime=False, n_sinks=5, alternate=False)
     agent = make_greedy_policy(5)
-    line.run(simulation_end=200, agent=agent, visualize=True, capture_screen=False)
+    line.run(simulation_end=200, agent=agent, visualize=True)
     print('Produced parts: ', line.get_n_parts_produced())

@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import start_visualization, Viewpoint
+from lineflow.simulation.visualization import start_visualization
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +305,6 @@ class Line:
                 class.
             show_status (bool): Show progress bar for each simulation episode
             visualize (bool): If true, line visualization is opened
-            capture_screen (bool): Captures last Time frame when screen should be recorded
         """
         if visualize:
             self._init_visualization()
@@ -327,6 +326,7 @@ class Line:
         while self.env.now < simulation_end:
             if visualize and self.halt_event.is_set():
                 break
+
             pbar.update(self.env.now - now)
             now = self.env.now
             try:

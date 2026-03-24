@@ -113,4 +113,4 @@ if __name__ == '__main__':
     line = WorkerAssignment(with_rework=True, realtime=False, n_assemblies=7, step_size=2)
 
     agent = make_random_agent(7)
-    line.run(simulation_end=1000, agent=agent, visualize=True, capture_screen=False)
+    line.run(simulation_end=2_000, agent=agent, visualize=True)

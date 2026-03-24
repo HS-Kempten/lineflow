@@ -54,4 +54,4 @@ class SimplestLineWithReturnForPartCarriers(Line):
 
 if __name__ == '__main__':
     line = SimplestLineWithReturnForPartCarriers()
-    line.run(simulation_end=200, visualize=True, capture_screen=True)
+    line.run(simulation_end=200, visualize=True)

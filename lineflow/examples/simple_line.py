@@ -40,4 +40,4 @@ class SimpleLine(Line):
 
 if __name__ == '__main__':
     line = SimpleLine()
-    line.run(simulation_end=3, visualize=True, capture_screen=True)
+    line.run(simulation_end=3_000, visualize=True)

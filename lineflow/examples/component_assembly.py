@@ -149,5 +149,5 @@ class ComponentAssembly(Line):
 
 
 if __name__ == '__main__':
-    line = ComponentAssembly(realtime=True, factor=0.01)
-    line.run(simulation_end=1000, visualize=True, capture_screen=True)
+    line = ComponentAssembly(realtime=True, factor=0.5)
+    line.run(simulation_end=10_000, visualize=True)
