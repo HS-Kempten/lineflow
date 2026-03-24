@@ -208,6 +208,5 @@ class LineSimulation(gym.Env):
             self.line._close_visualization()
 
     def _get_observations_as_tensor(self, state):
-
         X = state.get_observations(lookback=1, include_time=False)
         return np.array(X, dtype=np.float32)
