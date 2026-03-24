@@ -261,7 +261,7 @@ class Visualization:
                 'white'
             )
             n_parts = font.render(
-                f'#Parts={self.info['n_parts']}',
+                f"#Parts={self.info['n_parts']}",
                 True,
                 'black',
                 'white'
