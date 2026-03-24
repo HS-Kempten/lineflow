@@ -118,15 +118,14 @@ class Buffer(Connector):
             self._positions_arrow[i] = arrowhead
             
     def get_visualization_data(self):
-        data = []
-        data.append(
+        data = [
             dict(
                 type='connector',
                 start=self._position_input,
                 end=self._position_output,
                 n_slots=self.capacity,
             )
-        )
+        ]
 
         for carrier in self.carriers.values():
             data.append(carrier.get_visualization_data(with_text=True))

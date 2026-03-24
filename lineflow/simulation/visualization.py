@@ -69,6 +69,7 @@ class Visualization:
         self.carriers = []
         self.info = None
         self.actions = None
+        self.connection_data = []
 
     def teardown(self):
         self.running = False

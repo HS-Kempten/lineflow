@@ -70,8 +70,9 @@ class Line:
         self.visualization_process.start()
 
     def _close_visualization(self):
-        self.stop_event.set()
-        self.visualization_process.join()
+        if hasattr(self, 'visualization_process'):
+            self.stop_event.set()
+            self.visualization_process.join()
 
 
     @property

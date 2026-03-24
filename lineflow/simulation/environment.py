@@ -192,6 +192,7 @@ class LineSimulation(gym.Env):
         observation = self._get_observations_as_tensor(state)
 
         if self.render_mode == "human":
+            self.line._close_visualization()
             self.line._init_visualization()
             self.render()
         return observation, self._get_info()
