@@ -304,18 +304,18 @@ class Visualization:
             if event.type == pygame.QUIT:
                 self.teardown()
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_q]:
+        if keys[pygame.K_q] or keys[pygame.K_PLUS]:
             self.viewpoint.z -= 3*self.dt
-        if keys[pygame.K_e]:
+        if keys[pygame.K_e] or keys[pygame.K_MINUS]:
             self.viewpoint.z += 3*self.dt
-        if keys[pygame.K_w]:
-            self.viewpoint.y -= 300*self.dt
-        if keys[pygame.K_s]:
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
             self.viewpoint.y += 300*self.dt
-        if keys[pygame.K_a]:
-            self.viewpoint.x -= 300*self.dt
-        if keys[pygame.K_d]:
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            self.viewpoint.y -= 300*self.dt
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             self.viewpoint.x += 300*self.dt
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            self.viewpoint.x -= 300*self.dt
         if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
             self.halt_event.set()
         self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
