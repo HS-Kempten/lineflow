@@ -267,7 +267,8 @@ class Visualization:
     def check_user_input(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.teardown()
+                raise StopIteration()
+
         keys = pygame.key.get_pressed()
         if keys[pygame.K_q]:
             self.viewpoint.z -= 3*self.dt
