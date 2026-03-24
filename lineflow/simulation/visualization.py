@@ -26,33 +26,6 @@ class Viewpoint:
         
         self._view = pygame.Vector3(position[0], position[1], zoom)
 
-    def check_user_input(self):
-
-        if pygame.key.get_pressed()[pygame.K_PLUS]:
-            self._view.z += 0.1
-
-        if pygame.key.get_pressed()[pygame.K_MINUS]:
-            self._view.z -=0.1
-
-        if pygame.key.get_pressed()[pygame.K_UP]:
-            self._view.y += 10
-
-        if pygame.key.get_pressed()[pygame.K_DOWN]:
-            self._view.y -= 10
-
-        if pygame.key.get_pressed()[pygame.K_LEFT]:
-            self._view.x += 10
-
-        if pygame.key.get_pressed()[pygame.K_RIGHT]:
-            self._view.x -= 10
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.teardown()
-
-        self._view.z = max(self._view.z, 0.1)
-        self._view.z = min(self._view.z, 5)
-
     def clear(self):
         self.screen.fill('white')
         self.paper.fill('white')
@@ -72,17 +45,16 @@ class Visualization:
         self,
         size=None,
         viewpoint=None,
-        points=None,
         connection=None,
         stop_event=None,
         halt_event=None,
         ):
 
         if size is None:
-            size = (1280,720)
+            size = (1280, 720)
         self.size = size
         if viewpoint is None:
-            viewpoint = (0,0,1)
+            viewpoint = (0, 0, 1)
         self.viewpoint = pygame.Vector3(viewpoint)
         self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
 
@@ -92,7 +64,6 @@ class Visualization:
 
         self.center = pygame.Vector2(self.size[0]/2, self.size[1]/2)
 
-        self.connection_data = []
         self.stations = []
         self.connectors = []
         self.carriers = []
@@ -106,8 +77,6 @@ class Visualization:
         self.screen.fill('white')
 
     def get_from_connection(self):
-        #if not self.connection.empty():
-        #    self.connection_data = self.connection.get()
         while True:
             try:
                 self.connection_data = self.connection.get_nowait()
@@ -304,9 +273,9 @@ class Visualization:
             if event.type == pygame.QUIT:
                 self.teardown()
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_q] or keys[pygame.K_PLUS]:
+        if keys[pygame.K_q]:
             self.viewpoint.z -= 3*self.dt
-        if keys[pygame.K_e] or keys[pygame.K_MINUS]:
+        if keys[pygame.K_e]:
             self.viewpoint.z += 3*self.dt
         if keys[pygame.K_w] or keys[pygame.K_UP]:
             self.viewpoint.y += 300*self.dt
@@ -341,7 +310,6 @@ class Visualization:
             self.draw_info()
             self.draw_actions()
             self.draw_cursor()
-
 
             pygame.display.flip()
         

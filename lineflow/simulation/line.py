@@ -63,6 +63,11 @@ class Line:
             args=(self.connection, self.stop_event, self.halt_event)
         )
 
+        for _, obj in self._objects.items():
+            if isinstance(obj, Connector):
+                obj.setup_positions()
+
+
     @property
     def name(self):
         return self.__class__.__name__
@@ -199,11 +204,6 @@ class Line:
                 self._add_actions(actions)
             self.connection.put(self.data)
 
-    def setup_connectors(self):
-        for _, obj in self._objects.items():
-            if isinstance(obj, Connector):
-                obj.setup_positions()
-
     def _add_stations(self):
         self._add_objects_of_type(Station)
 
@@ -309,7 +309,6 @@ class Line:
         if visualize:
             self._init_visualization()
             self.visualization_process.start()
-            self.setup_connectors()
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:

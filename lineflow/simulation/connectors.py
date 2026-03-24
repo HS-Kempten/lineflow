@@ -28,6 +28,9 @@ class Connector(StationaryObject):
         self._position_output = station.position
         return self.get
 
+    def setup_positions(self):
+        raise NotImplementedError()
+
 
 class Buffer(Connector):
     """
