@@ -193,8 +193,6 @@ class LineSimulation(gym.Env):
 
         if self.render_mode == "human":
             self.line._init_visualization()
-            self.line.visualization_process.start()
-            self.line.setup_connectors()
             self.render()
         return observation, self._get_info()
 
@@ -207,7 +205,7 @@ class LineSimulation(gym.Env):
 
     def close(self):
         if self.render_mode == 'human':
-            self.line.stop_event.set()
+            self.line._close_visualization()
 
     def _get_observations_as_tensor(self, state):
 
