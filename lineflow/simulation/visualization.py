@@ -262,7 +262,7 @@ class Visualization:
         self.screen.blit(text,text.get_rect(left=50,top=self.size[1]-40))
 
     def draw_cursor(self):
-        pygame.draw.circle(self.screen,'blue',self.center,10,1)
+        pygame.draw.circle(self.screen, 'blue', self.center, 10, 1)
         
     def check_user_input(self):
         for event in pygame.event.get():
