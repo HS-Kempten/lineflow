@@ -267,8 +267,8 @@ class Visualization:
     def check_user_input(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                raise StopIteration()
-
+                return False
+    
         keys = pygame.key.get_pressed()
         if keys[pygame.K_q]:
             self.viewpoint.z -= 3*self.dt
@@ -286,6 +286,7 @@ class Visualization:
             self.halt_event.set()
         self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
         self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
+        return True
 
     def run(self):
 
@@ -293,27 +294,30 @@ class Visualization:
         self.screen = pygame.display.set_mode(self.size)
         self.clock = pygame.time.Clock()
 
-        while True:
-            if self.stop_event.is_set():
-                break
+        try:
+            while True:
+                if self.stop_event.is_set():
+                    break
 
-            self.check_user_input()
-            self.check_connection()
-            self.clear()
-            self.draw_connectors()
-            self.draw_stations()
-            self.draw_carriers()
-            self.draw_user_input()
-            self.draw_info()
-            self.draw_actions()
-            self.draw_cursor()
+                if not self.check_user_input():
+                    break
 
-            pygame.display.flip()
-        
-            self.dt = self.clock.tick(60)/1000
-        
-        pygame.quit()
-        self.stop_event.set()
+                self.check_connection()
+                self.clear()
+                self.draw_connectors()
+                self.draw_stations()
+                self.draw_carriers()
+                self.draw_user_input()
+                self.draw_info()
+                self.draw_actions()
+                self.draw_cursor()
+
+                pygame.display.flip()
+            
+                self.dt = self.clock.tick(60)/1000
+        finally:
+            pygame.quit()
+            self.stop_event.set()
 
 def start_visualization(connection, stop_event, halt_event):
     visualization = Visualization(connection=connection, stop_event=stop_event, halt_event=halt_event)
