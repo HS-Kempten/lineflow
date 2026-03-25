@@ -254,7 +254,7 @@ class Visualization:
     def draw_user_input(self):
         font = pygame.font.SysFont(None, 24)
         text = font.render(
-            "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Halt Simulation",
+            "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Exit",
             True,
             'black',
             'white'
