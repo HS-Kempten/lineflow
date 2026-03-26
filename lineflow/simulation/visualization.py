@@ -38,6 +38,30 @@ class Visualization:
         self.actions = None
         self.connection_data = []
 
+        self.initial_view_data = False
+        self.has_set_initial_view = False
+
+    def set_initial_viewpoint(self):
+        x_positions = []
+        y_positions = []
+        for station in self.stations:
+            x_positions.append(station['position'].x)
+            y_positions.append(station['position'].y)
+        line_width = max(x_positions)-min(x_positions)
+        line_height = max(y_positions)-min(y_positions)
+        line_center = pygame.Vector2(min(x_positions)+line_width/2,min(y_positions)+line_height/2)
+        self.viewpoint.x = -line_center.x
+        self.viewpoint.y = -line_center.y
+        x_scalar = line_width / (self.size[0]-100)
+        y_scalar = line_height / (self.size[1]-100)
+        scalar = max(x_scalar,y_scalar)
+        if scalar < 1:
+            self.viewpoint.z = 1
+        else:
+            self.viewpoint.z = round(scalar,1)
+        print(self.viewpoint)
+        self.has_set = True
+
     def clear(self):
         self.screen.fill('white')
 
@@ -45,6 +69,8 @@ class Visualization:
         while True:
             try:
                 self.connection_data = self.connection.get_nowait()
+                if not self.has_set_initial_view:
+                    self.initial_view_data = True
             except Empty:
                 break
 
@@ -279,6 +305,8 @@ class Visualization:
                     break
 
                 self.check_connection()
+                if not self.has_set_initial_view and self.initial_view_data:
+                    self.set_initial_viewpoint()
                 self.clear()
                 self.draw_connectors()
                 self.draw_stations()
