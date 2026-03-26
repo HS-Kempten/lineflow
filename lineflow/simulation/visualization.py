@@ -59,8 +59,7 @@ class Visualization:
             self.viewpoint.z = 1
         else:
             self.viewpoint.z = round(scalar,1)
-        print(self.viewpoint)
-        self.has_set = True
+        self.has_set_initial_view = True
 
     def clear(self):
         self.screen.fill('white')
@@ -263,6 +262,16 @@ class Visualization:
         )
         self.screen.blit(text,text.get_rect(left=50,top=self.size[1]-40))
 
+    def draw_loading(self):
+        font = pygame.font.SysFont(None, 48)
+        text = font.render("Loading Scene...", True, 'black')
+        self.screen.blit(text, text.get_rect(center=self.center))
+
+    def draw_shutdown(self):
+        font = pygame.font.SysFont(None, 48)
+        text = font.render("Shutting down...", True, 'black')
+        self.screen.blit(text, text.get_rect(center=self.center))
+
     def draw_cursor(self):
         pygame.draw.circle(self.screen, 'blue', self.center, 10, 1)
         
@@ -305,8 +314,10 @@ class Visualization:
                     break
 
                 self.check_connection()
+
                 if not self.has_set_initial_view and self.initial_view_data:
                     self.set_initial_viewpoint()
+
                 self.clear()
                 self.draw_connectors()
                 self.draw_stations()
@@ -314,10 +325,17 @@ class Visualization:
                 self.draw_user_input()
                 self.draw_info()
                 self.draw_actions()
-                self.draw_cursor()
+                if not self.has_set_initial_view:
+                    self.draw_loading()
+                else:
+                    self.draw_cursor()
+
+                if self.halt_event.is_set():
+                    self.clear()
+                    self.draw_shutdown()
 
                 pygame.display.flip()
-            
+                
                 self.dt = self.clock.tick(60)/1000
         finally:
             pygame.quit()
