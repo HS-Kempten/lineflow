@@ -4,6 +4,7 @@ import pygame
 import numpy as np
 import logging
 from tqdm import tqdm
+from multiprocessing import Process, Queue, Event
 
 from lineflow.simulation.stationary_objects import StationaryObject
 from lineflow.simulation.states import LineStates
@@ -12,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import Viewpoint
+from lineflow.simulation.visualization import start_visualization
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,31 @@ class Line:
         self._info = info
 
         self.reset(random_state=random_state)
+        self.data = []
+
+    def _init_visualization(self):
+        """
+        Initializes the visualization process and the communication channels.
+        """
+        self.stop_event = Event()
+        self.halt_event = Event()
+        self.connection = Queue()
+        self.visualization_process = Process(
+            target=start_visualization,
+            args=(self.connection, self.stop_event, self.halt_event)
+        )
+
+        for _, obj in self._objects.items():
+            if isinstance(obj, Connector):
+                obj.setup_positions()
+
+        self.visualization_process.start()
+
+    def _close_visualization(self):
+        if hasattr(self, 'visualization_process'):
+            self.stop_event.set()
+            self.visualization_process.join()
+
 
     @property
     def name(self):
@@ -175,86 +201,27 @@ class Line:
         for o in self._objects.values():
             o.register(self.env)
 
-    def _draw(self, actions=None):
+    def _send_data_to_visualization(self, actions=None):
+        if not self.stop_event.is_set():
+            data = []
 
-        self.viewpoint.check_user_input()
+            for _, obj in self._objects.items():
+                if isinstance(obj, Station):
+                    data.append(obj.get_visualization_data())
 
-        self.viewpoint.clear()
-        
-        # Draw objects, first connectors, then stations
-        self._draw_connectors()
-        self._draw_stations()
-        
-        self.viewpoint._draw()
+                if isinstance(obj, Connector):
+                    data.extend(obj.get_visualization_data())
 
-        if actions is not None:
-            self._draw_actions(actions)
-
-        self._draw_info()
-
-        pygame.display.flip()
-
-    def _draw_info(self):
-
-        font = pygame.font.SysFont(None, 20)
-
-        time = font.render('T={:.2f}'.format(self.env.now), True, 'black')
-        n_parts = font.render(
-            f'#Parts={self.get_n_parts_produced()}', True, 'black'
-        )
-        self.viewpoint.screen.blit(time, time.get_rect(center=(30, 30)))
-        self.viewpoint.screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
-
-    def _draw_actions(self, actions):
-        font = pygame.font.SysFont(None, 20)
-        actions = font.render(f'{actions}', True, 'black')
-        self.viewpoint.screen.blit(actions, actions.get_rect(center=(500, 30)))
-
-    def _draw_stations(self):
-        self._draw_objects_of_type(Station)
-
-    def _draw_connectors(self):
-        self._draw_objects_of_type(Connector)
-
-    def _draw_objects_of_type(self, object_type):
-        for _, obj in self._objects.items():
-            if isinstance(obj, object_type):
-                obj._draw(self.viewpoint.paper)
-
-    def _get_object_positions(self):
-        x = []
-        y = []
-        for o in self._objects.values():
-            if hasattr(o, "position"):
-                x.append(o.position[0])
-                y.append(o.position[1])
-        return x, y
-
-    def _adjust_positions(self):
-        x, y = self._get_object_positions()
-
-        if min(x) < 100:
-            delta_x = 100 - min(x)
-            for o in self._objects.values():
-                if hasattr(o, "position"):
-                    o.position[0] += delta_x
-        if min(y) < 100:
-            delta_y = 100 - min(y)
-            for o in self._objects.values():
-                if hasattr(o, "position"):
-                    o.position[1] += delta_y
-
-        x, y = self._get_object_positions()
-        return max(x), max(y)
-
-    def setup_draw(self):
-        pygame.init()
-
-        max_x, max_y = self._adjust_positions()
-        for o in self._objects.values():
-            o.setup_draw()
-
-        self.viewpoint = Viewpoint(size=(max_x+100, max_y+100))
+            data.append(
+                dict(
+                    type="info",
+                    time=self.env.now,
+                    n_parts=self.get_n_parts_produced()
+                )
+            )
+            if actions is not None:
+                data.append(dict(type="actions", actions=actions))
+            self.connection.put(data)
 
     def apply(self, values):
         for object_name in values.keys():
@@ -299,7 +266,6 @@ class Line:
         agent=None,
         show_status=True,
         visualize=False,
-        capture_screen=False,
     ):
         """
         Args:
@@ -309,12 +275,9 @@ class Line:
                 class.
             show_status (bool): Show progress bar for each simulation episode
             visualize (bool): If true, line visualization is opened
-            capture_screen (bool): Captures last Time frame when screen should be recorded
         """
-
         if visualize:
-            self.setup_draw()
-
+            self._init_visualization()
 
         # Register objects when simulation is initially started
         if len(self.env._queue) == 0:
@@ -329,6 +292,9 @@ class Line:
         )
 
         while self.env.now < simulation_end:
+            if visualize and self.halt_event.is_set():
+                break
+
             pbar.update(self.env.now - now)
             now = self.env.now
             try:
@@ -342,17 +308,12 @@ class Line:
                 self.apply(actions)
 
             if visualize:
-                self._draw(actions)
-
-        if capture_screen and visualize:
-            pygame.image.save(self.viewpoint.screen, f"{self.name}.png")
+                self._send_data_to_visualization(actions)
 
         if visualize:
-            self.viewpoint.teardown()
+            self._close_visualization()
 
     def get_observations(self, object_name=None):
-        """
-        """
 
         df = self.state.df()
 

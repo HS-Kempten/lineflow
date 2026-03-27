@@ -265,7 +265,7 @@ if __name__ == '__main__':
         get_max_reward=False
         )
 
-    line.run(simulation_end=4000, agent=agent, capture_screen=False, show_status=True, visualize=False)
+    line.run(simulation_end=4000, agent=agent, show_status=True, visualize=False)
     print("Produced: ", line.get_n_parts_produced())
     print("Scrap: ", line.get_n_scrap_parts())
     print("Reward: ",  line.get_n_parts_produced() - line.get_n_scrap_parts()*scrap_factor)

@@ -87,4 +87,4 @@ class ShowCase(Line):
 
 if __name__ == '__main__':
     line = ShowCase(realtime=True, factor=0.1)
-    line.run(simulation_end=150, visualize=True, capture_screen=True)
+    line.run(simulation_end=150, visualize=True)

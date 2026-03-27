@@ -170,58 +170,25 @@ class Station(StationaryObject):
         else:
             return 1.0
 
-    def setup_draw(self):
-
-        self._rect = pygame.Rect(
-            self.position.x - self._width / 2,
-            self.position.y - self._height / 2,
-            self._width,
-            self._height,
+    def get_visualization_data(self):
+        data = dict(
+            type='station',
+            name=self.name,
+            position=self.position,
+            mode=self.state['mode'].to_str()
         )
+        data = self._add_visualization_info(data)
+        return data
 
-        font = pygame.font.SysFont(None, 20)
-        self._text = font.render(self.name, True, 'black')
-
-    def _draw(self, screen):
-        pygame.draw.rect(screen, self._color, self._rect, border_radius=5)
-        self._draw_info(screen)
-        screen.blit(
-            self._text,
-            self._text.get_rect(center=self.position + (0, -0.6 * self._height)),
-        )
-
-    def _draw_info(self, screen):
-        pass
+    def _add_visualization_info(self, data):
+        if not self.is_automatic:
+            data['worker_skill'] = str(self.worker_skill)
+        return data
 
     def _is_nok_part(self, component):
         return self.random.choice(
             [True, False], 
             p=[component.nok_probability, 1 - component.nok_probability],
-        )
-
-    def _draw_n_workers(self, screen):
-        if not self.is_automatic:
-            font = pygame.font.SysFont(None, 14)
-            text = font.render(
-                "W=" + str(self.worker_skill),
-                True,
-                'black',
-            )
-            screen.blit(
-                text,
-                text.get_rect(center=self.position),
-            )
-
-    def _draw_n_carriers(self, screen):
-        font = pygame.font.SysFont(None, 14)
-        text = font.render(
-            "C=" + self.state['carriers_in_magazine'].to_str(),
-            True,
-            'black',
-        )
-        screen.blit(
-            text,
-            text.get_rect(center=self.position),
         )
 
     def get_performance_coefficient(self):
@@ -444,9 +411,6 @@ class Assembly(Station):
                 return True
         return False
 
-    def _draw_info(self, screen):
-        self._draw_n_workers(screen)
-
     def run(self):
 
         while True:
@@ -581,9 +545,6 @@ class Process(Station):
         self.state['carrier'].update(None)
         self.state['processing_time'].update(self.processing_time)
         self.state['n_workers'].update(self.n_workers)
-
-    def _draw_info(self, screen):
-        self._draw_n_workers(screen)
 
     def run(self):
 
@@ -1183,16 +1144,16 @@ class Switch(Station):
             self.state['index_buffer_out'].value
         ].__self__._positions_slots[0]
 
-    def _draw_info(self, screen):
+    def _add_visualization_info(self, data):
+        data = super()._add_visualization_info(data)
         pos_buffer_in = self._get_buffer_in_position()
         pos_buffer_out = self._get_buffer_out_position()
 
         pos_in = pos_buffer_in + 0.5*(self.position - pos_buffer_in)
         pos_out = pos_buffer_out + 0.5*(self.position - pos_buffer_out)
 
-        pygame.draw.circle(screen, 'gray', self.position, 6)
-        for pos in [pos_in, pos_out]:
-            pygame.draw.line(screen, "gray", self.position, pos, width=5)
+        data['pos_in_out'] = [pos_in, pos_out]
+        return data
 
     def _connect_to_input(self, buffer):
         self.buffer_in.append(buffer.connect_to_output(self))
@@ -1401,9 +1362,9 @@ class Magazine(Station):
         self.state['carriers_in_magazine'].increment()
 
     def _update_magazine(self):
-        '''
+        """
         update the magazine according to state
-        '''
+        """
         should = self.state['carriers_in_magazine'].value
         current = len(self.magazine.items)
         diff = should - current
@@ -1413,11 +1374,13 @@ class Magazine(Station):
                 self.magazine.put(carrier)
 
         if diff < 0:
-            for i in range(abs(diff)):
+            for _ in range(abs(diff)):
                 carrier = yield self.magazine.get()
 
-    def _draw_info(self, screen):
-        self._draw_n_carriers(screen)
+    def _add_visualization_info(self, data):
+        data = super()._add_visualization_info(data)
+        data['magazine'] = self.state['carriers_in_magazine'].to_str()
+        return data
 
     def get_carrier(self):
         # First check if Magazine is allowed to create unlimited carriers

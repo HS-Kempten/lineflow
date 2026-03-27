@@ -29,15 +29,7 @@ class MovableObject(object):
     def creation_time(self):
         return self['creation_time']
 
-    def draw(self, screen, with_text=True):
-
-        self._draw_shape(screen)
-        if with_text:
-            font = pygame.font.SysFont(None, 12)
-            text = font.render(self.name, True, 'blue')
-            screen.blit(text, text.get_rect(center=self._position + (0, -1.3*self._height)))
-
-    def _draw_shape(self, screen):
+    def get_visualization_data(self):
         raise NotImplementedError()
 
     def move(self, position):
@@ -142,10 +134,6 @@ class Part(MovableObject):
             raise ValueError('Expect pygame vector as position')
         self.move(position)
 
-    def _draw(self, screen, x, y, width, height):
-        _part_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(screen, self._color, _part_rect, border_radius=1)
-
     def get_processing_time(self, station):
         return self.specs.get(station, {}).get("extra_processing_time", 0)
 
@@ -186,24 +174,18 @@ class Carrier(MovableObject):
 
         self.parts[part.name] = part
 
-    def _draw_shape(self, screen):
+    def get_visualization_data(self, with_text=True):
+        parts = len(self.parts)
+        if np.isinf(self.capacity) and parts != 0:
+            fill = 1
+        else:
+            fill = parts/self.capacity
 
-        self._rect = pygame.Rect(
-            self._position.x - self._width / 2,
-            self._position.y - self._height / 2,
-            self._width,
-            self._height,
-        )
-        pygame.draw.rect(screen, self._color, self._rect, border_radius=2)
+        data = dict(type='carrier', position=self._position, fill=fill)
 
-        for i, part in enumerate(self):
-            part._draw(
-                screen,
-                x=self._position.x+0.1*self._width - self._width / 2 + i*(self._width_part),
-                y=self._position.y - self._height_part / 2,
-                width=self._width_part,
-                height=self._height_part,
-            )
+        if with_text:
+            data['name'] = self.name
+        return data
 
     def move(self, position):
         """

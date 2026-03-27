@@ -28,6 +28,9 @@ class Connector(StationaryObject):
         self._position_output = station.position
         return self.get
 
+    def setup_positions(self):
+        raise NotImplementedError()
+
 
 class Buffer(Connector):
     """
@@ -77,7 +80,7 @@ class Buffer(Connector):
     def n_carriers(self):
         return len(self.carriers)
 
-    def setup_draw(self):
+    def setup_positions(self):
 
         vec_direction = np.array(
             [
@@ -113,28 +116,21 @@ class Buffer(Connector):
                 )
 
             self._positions_arrow[i] = arrowhead
+            
+    def get_visualization_data(self):
+        data = [
+            dict(
+                type='connector',
+                start=self._position_input,
+                end=self._position_output,
+                n_slots=self.capacity,
+            )
+        ]
 
-    def _draw(self, screen):
-
-        pygame.draw.line(
-            screen,
-            self.color,
-            self._position_input,
-            self._position_output,
-            width=10,
-        )
-
-        # Draw slots
-        for i, slot in enumerate(self._positions_slots):
-            pygame.draw.circle(screen, 'gray', slot, 10)
-
-        # Draw arrowheads
-        for i, arrow in enumerate(self._positions_arrow[:-1]):
-            pygame.draw.polygon(screen, 'black', arrow)
-
-        # Draw carriers
         for carrier in self.carriers.values():
-            carrier.draw(screen)
+            data.append(carrier.get_visualization_data(with_text=True))
+
+        return data
 
     def _sample_put_time(self):
         return self.put_time + self.random.exponential(scale=self.put_std)
