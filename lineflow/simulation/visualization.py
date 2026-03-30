@@ -19,17 +19,21 @@ class Visualization:
 
         if size is None:
             size = (1280, 720)
-        self.size = size
-        if viewpoint is None:
-            viewpoint = (0, 0, 1)
-        self.viewpoint = pygame.Vector3(viewpoint)
-        self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
+        self.size = pygame.Vector2(size)
+
+        if viewpoint is not None:
+            self.viewpoint = pygame.Vector3(viewpoint)
+        else:
+            self.viewpoint = viewpoint
+
+        if self.viewpoint is not None:
+            self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
 
         self.connection = connection
         self.stop_event = stop_event
         self.halt_event = halt_event
 
-        self.center = pygame.Vector2(self.size[0]/2, self.size[1]/2)
+        self.center = pygame.Vector2(self.size.x/2, self.size.y/2)
 
         self.stations = []
         self.connectors = []
@@ -39,7 +43,8 @@ class Visualization:
         self.connection_data = []
 
         self.initial_view_data = False
-        self.has_set_initial_view = False
+
+        self.show_minimap = True
 
     def set_initial_viewpoint(self):
         x_positions = []
@@ -49,17 +54,21 @@ class Visualization:
             y_positions.append(station['position'].y)
         line_width = max(x_positions)-min(x_positions)
         line_height = max(y_positions)-min(y_positions)
-        line_center = pygame.Vector2(min(x_positions)+line_width/2,min(y_positions)+line_height/2)
-        self.viewpoint.x = -line_center.x
-        self.viewpoint.y = -line_center.y
-        x_scalar = line_width / (self.size[0]-100)
-        y_scalar = line_height / (self.size[1]-100)
+        line_center = pygame.Vector2(
+            min(x_positions)+line_width/2,
+            min(y_positions)+line_height/2
+        )
+        x = -line_center.x
+        y = -line_center.y
+        x_scalar = line_width / (self.size.x-100)
+        y_scalar = line_height / (self.size.y-100)
         scalar = max(x_scalar,y_scalar)
         if scalar < 1:
-            self.viewpoint.z = 1
+            z = 1
         else:
-            self.viewpoint.z = round(scalar,1)
-        self.has_set_initial_view = True
+            z = round(scalar,1)
+        self.viewpoint = pygame.Vector3(x, y, z)
+        self.view = pygame.Vector2(x, y)
 
     def clear(self):
         self.screen.fill('white')
@@ -68,7 +77,7 @@ class Visualization:
         while True:
             try:
                 self.connection_data = self.connection.get_nowait()
-                if not self.has_set_initial_view:
+                if self.viewpoint is None:
                     self.initial_view_data = True
             except Empty:
                 break
@@ -260,7 +269,7 @@ class Visualization:
             'black',
             'white'
         )
-        self.screen.blit(text,text.get_rect(left=50,top=self.size[1]-40))
+        self.screen.blit(text,text.get_rect(left=50,top=self.size.y-40))
 
     def draw_loading(self):
         font = pygame.font.SysFont(None, 48)
@@ -274,6 +283,32 @@ class Visualization:
 
     def draw_cursor(self):
         pygame.draw.circle(self.screen, 'blue', self.center, 10, 1)
+
+    def draw_minimap(self):
+        downscale = 5
+        minimap_size = pygame.Vector2(self.size / downscale)
+        minimap = pygame.Surface(minimap_size)
+        minimap.fill('white')
+        pygame.draw.rect(minimap, 'blue', pygame.Rect((0, 0), minimap_size), width=2)
+
+        for connector in self.connectors:
+            pygame.draw.line(
+                minimap,
+                'gray',
+                connector['start']/downscale,
+                connector['end']/downscale,
+            )
+        for station in self.stations:
+            pygame.draw.circle(minimap, 'green', station['position']/downscale, 5)
+        for carrier in self.carriers:
+            pygame.draw.circle(minimap, 'orange', carrier['position']/downscale, 3)
+
+        view_outline = pygame.Rect(
+            -1 * self.view / downscale - (self.size / downscale * self.viewpoint.z) / 2,
+            self.size / downscale * self.viewpoint.z
+        )
+        pygame.draw.rect(minimap, 'red', view_outline, width=1)
+        self.screen.blit(minimap, (self.size.x-minimap_size.x, 0))
         
     def check_user_input(self):
         for event in pygame.event.get():
@@ -310,25 +345,30 @@ class Visualization:
                 if self.stop_event.is_set():
                     break
 
-                if not self.check_user_input():
+                # Why do we check if the check_user_input returns True?
+                if self.viewpoint is not None and not self.check_user_input():
                     break
 
                 self.check_connection()
 
-                if not self.has_set_initial_view and self.initial_view_data:
+                if self.viewpoint is None and self.initial_view_data:
                     self.set_initial_viewpoint()
 
                 self.clear()
-                self.draw_connectors()
-                self.draw_stations()
-                self.draw_carriers()
-                self.draw_user_input()
-                self.draw_info()
-                self.draw_actions()
-                if not self.has_set_initial_view:
+                
+                if self.viewpoint is None:
                     self.draw_loading()
                 else:
+                    self.draw_connectors()
+                    self.draw_stations()
+                    self.draw_carriers()
+                    self.draw_user_input()
+                    self.draw_info()
+                    self.draw_actions()
                     self.draw_cursor()
+
+                if self.viewpoint is not None and self.show_minimap:
+                    self.draw_minimap()
 
                 if self.halt_event.is_set():
                     self.clear()
