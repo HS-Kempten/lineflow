@@ -137,23 +137,26 @@ class Visualization:
                     self.view/self.viewpoint.z + self.center + connector['start']/self.viewpoint.z + snippet*(n+1),
                     int(10/self.viewpoint.z)
                 )
+    def set_station_color(self, station):
+        color = 'black'
+        if not 'mode' in station:
+            pass
+        elif station['mode'] == 'working':
+            color = 'green'
+        elif station['mode'] == 'waiting':
+            color = 'yellow'
+        elif station['mode'] == 'failing':
+            color = 'red'
+        elif station['mode'] == 'off':
+            color = 'gray'
+        return color
 
     def draw_stations(self):
         width = 30
         height = 30
         font = pygame.font.SysFont(None,int(20/self.viewpoint.z))
         for station in self.stations:
-            color = 'black'
-            if not 'mode' in station:
-                pass
-            elif station['mode'] == 'working':
-                color = 'green'
-            elif station['mode'] == 'waiting':
-                color = 'yellow'
-            elif station['mode'] == 'failing':
-                color = 'red'
-            elif station['mode'] == 'off':
-                color = 'gray'
+            color = self.set_station_color(station)
 
             pygame.draw.rect(
                 self.screen,
@@ -273,7 +276,7 @@ class Visualization:
     def draw_user_input(self):
         font = pygame.font.SysFont(None, 24)
         text = font.render(
-            "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Exit",
+            "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Exit, M: toggle minimap",
             True,
             'black',
             'white'
@@ -326,17 +329,7 @@ class Visualization:
                 draw_position + connector['end'] / downscale,
             )
         for station in self.stations:
-            color = 'black'
-            if not 'mode' in station:
-                pass
-            elif station['mode'] == 'working':
-                color = 'green'
-            elif station['mode'] == 'waiting':
-                color = 'yellow'
-            elif station['mode'] == 'failing':
-                color = 'red'
-            elif station['mode'] == 'off':
-                color = 'gray'
+            color = self.set_station_color(station)
             pygame.draw.circle(
                 self.screen,
                 color,
@@ -374,7 +367,10 @@ class Visualization:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-                
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_m:
+                    self.show_minimap = not self.show_minimap
+
         keys = pygame.key.get_pressed()
         if keys[pygame.K_q]:
             self.viewpoint.z -= 3*self.dt
