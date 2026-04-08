@@ -368,6 +368,14 @@ class Visualization:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
                     self.show_minimap = not self.show_minimap
+            elif event.type == pygame.MOUSEWHEEL:
+                self.viewpoint.z += 5 * event.y * self.dt
+    
+        _mouse = pygame.mouse.get_pressed()
+        mouse_rel = pygame.mouse.get_rel()
+        if _mouse[1]:
+            self.viewpoint.x += mouse_rel[0] * self.viewpoint.z
+            self.viewpoint.y += mouse_rel[1] * self.viewpoint.z
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_q]:
