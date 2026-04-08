@@ -55,22 +55,23 @@ class Visualization:
     def viewpoint_is_set(self):
         return self.viewpoint is not None
 
-    def find_line_size(self):
+    def find_line_bounds(self):
         x_positions = []
         y_positions = []
         for station in self.stations:
             x_positions.append(station['position'].x)
             y_positions.append(station['position'].y)
-        line_width = max(x_positions)-min(x_positions)
-        line_height = max(y_positions)-min(y_positions)
-        line_center = pygame.Vector2(
-            min(x_positions)+line_width/2,
-            min(y_positions)+line_height/2
-        )
         self.line_bounds = dict(
             upper_left=pygame.Vector2(min(x_positions), min(y_positions)),
             lower_right=pygame.Vector2(max(x_positions), max(y_positions))
         )
+
+    def find_line_size(self):
+        if self.line_bounds is None:
+            self.find_line_bounds()
+        line_width = self.line_bounds['lower_right'].x - self.line_bounds['upper_left'].x
+        line_height = self.line_bounds['lower_right'].y - self.line_bounds['upper_left'].y
+        line_center = self.line_bounds['upper_left'] + (line_width/2,line_height/2)
         return line_width, line_height, line_center
 
     def set_initial_viewpoint(self):
@@ -296,32 +297,31 @@ class Visualization:
 
     def draw_minimap(self):
         if self.line_bounds is None:
-            self.find_line_size()
+            self.find_line_bounds()
 
         downscale = 5
-        buffer = pygame.Vector2(10, 10)
+        buffer = pygame.Vector2(20, 20)
         line_diagonal = self.line_bounds['lower_right'] - self.line_bounds['upper_left']
-        minimap_upper_left = pygame.Vector2(
-            self.size.x - line_diagonal.x / downscale - buffer.x,
-            buffer.y
+        minimap_surface_size = pygame.Vector2(line_diagonal / downscale + buffer)
+        minimap_surface = pygame.Surface(minimap_surface_size)
+        minimap_surface.fill('white')
+        minimap_surface_pos = pygame.Vector2(
+            self.size.x - minimap_surface_size.x,
+            0
         )
-        draw_position = minimap_upper_left - self.line_bounds['upper_left'] / downscale
+        minimap_upper_left = pygame.Vector2(0,0)
+        draw_position = minimap_upper_left - self.line_bounds['upper_left'] / downscale + buffer /2
         minimap_size = pygame.Vector2(self.size / downscale)
         pygame.draw.rect(
-            self.screen,
-            'white',
-            pygame.Rect(minimap_upper_left - buffer, line_diagonal / downscale + buffer*2)
-        )
-        pygame.draw.rect(
-            self.screen,
+            minimap_surface,
             'blue',
-            pygame.Rect(minimap_upper_left - buffer, line_diagonal / downscale + buffer*2),
+            pygame.Rect(minimap_upper_left, minimap_surface_size),
             width=2
         )
 
         for connector in self.connectors:
             pygame.draw.line(
-                self.screen,
+                minimap_surface,
                 'gray',
                 draw_position + connector['start'] / downscale,
                 draw_position + connector['end'] / downscale,
@@ -329,14 +329,14 @@ class Visualization:
         for station in self.stations:
             color = self.get_station_color(station)
             pygame.draw.circle(
-                self.screen,
+                minimap_surface,
                 color,
                 draw_position + station['position'] / downscale,
                 5
             )
         for carrier in self.carriers:
             pygame.draw.circle(
-                self.screen,
+                minimap_surface,
                 'orange',
                 draw_position + carrier['position'] / downscale,
                 3
@@ -347,19 +347,20 @@ class Visualization:
             self.size / downscale * self.viewpoint.z
         )
         pygame.draw.line(
-            self.screen,
+            minimap_surface,
             'red',
             draw_position - self.view / downscale + (3,0),
             draw_position - self.view / downscale - (3,0)
         )
         pygame.draw.line(
-            self.screen,
+            minimap_surface,
             'red',
             draw_position - self.view / downscale + (0,3),
             draw_position - self.view / downscale - (0,3)
         )
-        if self.viewpoint.z < 1:
-            pygame.draw.rect(self.screen, 'red', view_outline, width=1)
+        
+        pygame.draw.rect(minimap_surface, 'red', view_outline, width=1)
+        self.screen.blit(minimap_surface,minimap_surface_pos)
         
     def check_user_input(self):
         for event in pygame.event.get():
