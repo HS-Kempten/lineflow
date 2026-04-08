@@ -22,13 +22,10 @@ class Visualization:
         self.size = pygame.Vector2(size)
 
         if viewpoint is not None:
-            self.viewpoint = pygame.Vector3(viewpoint)
-        else:
-            self.viewpoint = viewpoint
-
-        if self.viewpoint is not None:
-            self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
-
+            viewpoint = pygame.Vector3(viewpoint)
+            self.view = pygame.Vector2(viewpoint.x, viewpoint.y)
+        self.viewpoint = viewpoint
+        
         self.connection = connection
         self.stop_event = stop_event
         self.halt_event = halt_event
