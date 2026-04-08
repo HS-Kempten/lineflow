@@ -47,6 +47,10 @@ class Visualization:
         self.line_bounds = None
         self.show_minimap = True
 
+    @property
+    def viewpoint_is_set(self):
+        return self.viewpoint is not None
+
     def find_line_size(self):
         x_positions = []
         y_positions = []
@@ -401,18 +405,17 @@ class Visualization:
                 if self.stop_event.is_set():
                     break
 
-                # Why do we check if the check_user_input returns True?
-                if self.viewpoint is not None and not self.check_user_input():
+                if viewpoint_is_set and not self.check_user_input():
                     break
 
                 self.check_connection()
 
-                if self.viewpoint is None and self.initial_view_data:
+                if not viewpoint_is_set and self.initial_view_data:
                     self.set_initial_viewpoint()
 
                 self.clear()
                 
-                if self.viewpoint is None:
+                if not viewpoint_is_set:
                     self.draw_loading()
                 else:
                     self.draw_connectors()
@@ -423,7 +426,7 @@ class Visualization:
                     self.draw_actions()
                     self.draw_cursor()
 
-                if self.viewpoint is not None and self.show_minimap:
+                if viewpoint_is_set and self.show_minimap:
                     self.draw_minimap()
 
                 if self.halt_event.is_set():
