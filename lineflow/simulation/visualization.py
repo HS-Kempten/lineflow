@@ -47,6 +47,13 @@ class Visualization:
         self.line_bounds = None
         self.show_minimap = True
 
+        self.color_mapping = {
+            'working': 'green',
+            'waiting': 'yellow',
+            'failing': 'red',
+            'off': 'gray'
+        }
+
     @property
     def viewpoint_is_set(self):
         return self.viewpoint is not None
@@ -141,26 +148,16 @@ class Visualization:
                     self.view/self.viewpoint.z + self.center + connector['start']/self.viewpoint.z + snippet*(n+1),
                     int(10/self.viewpoint.z)
                 )
-    def set_station_color(self, station):
-        color = 'black'
-        if not 'mode' in station:
-            pass
-        elif station['mode'] == 'working':
-            color = 'green'
-        elif station['mode'] == 'waiting':
-            color = 'yellow'
-        elif station['mode'] == 'failing':
-            color = 'red'
-        elif station['mode'] == 'off':
-            color = 'gray'
-        return color
+    
+    def get_station_color(self, station):
+        return self.color_mapping[station['mode']]
 
     def draw_stations(self):
         width = 30
         height = 30
         font = pygame.font.SysFont(None,int(20/self.viewpoint.z))
         for station in self.stations:
-            color = self.set_station_color(station)
+            color = self.get_station_color(station)
 
             pygame.draw.rect(
                 self.screen,
@@ -333,7 +330,7 @@ class Visualization:
                 draw_position + connector['end'] / downscale,
             )
         for station in self.stations:
-            color = self.set_station_color(station)
+            color = self.get_station_color(station)
             pygame.draw.circle(
                 self.screen,
                 color,
@@ -405,17 +402,17 @@ class Visualization:
                 if self.stop_event.is_set():
                     break
 
-                if viewpoint_is_set and not self.check_user_input():
+                if self.viewpoint_is_set and not self.check_user_input():
                     break
 
                 self.check_connection()
 
-                if not viewpoint_is_set and self.initial_view_data:
+                if not self.viewpoint_is_set and self.initial_view_data:
                     self.set_initial_viewpoint()
 
                 self.clear()
                 
-                if not viewpoint_is_set:
+                if not self.viewpoint_is_set:
                     self.draw_loading()
                 else:
                     self.draw_connectors()
@@ -426,7 +423,7 @@ class Visualization:
                     self.draw_actions()
                     self.draw_cursor()
 
-                if viewpoint_is_set and self.show_minimap:
+                if self.viewpoint_is_set and self.show_minimap:
                     self.draw_minimap()
 
                 if self.halt_event.is_set():
