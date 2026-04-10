@@ -350,7 +350,7 @@ class Visualization:
                 if event.key == pygame.K_m:
                     self.show_minimap = not self.show_minimap
             elif event.type == pygame.MOUSEWHEEL:
-                self.viewpoint.z += 5 * event.y * self.dt
+                self.viewpoint.z += 5 * event.y * self.viewpoint.z * self.dt
     
         _mouse = pygame.mouse.get_pressed(num_buttons=3)
         mouse_rel = pygame.mouse.get_rel()
@@ -361,17 +361,17 @@ class Visualization:
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_q]:
-            self.viewpoint.z -= 3*self.dt
+            self.viewpoint.z -= 3*self.viewpoint.z*self.dt
         if keys[pygame.K_e]:
-            self.viewpoint.z += 3*self.dt
+            self.viewpoint.z += 3*self.viewpoint.z*self.dt
         if keys[pygame.K_w] or keys[pygame.K_UP]:
-            self.viewpoint.y += 300*self.dt
+            self.viewpoint.y += 300*self.viewpoint.z*self.dt
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            self.viewpoint.y -= 300*self.dt
+            self.viewpoint.y -= 300*self.viewpoint.z*self.dt
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            self.viewpoint.x += 300*self.dt
+            self.viewpoint.x += 300*self.viewpoint.z*self.dt
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            self.viewpoint.x -= 300*self.dt
+            self.viewpoint.x -= 300*self.viewpoint.z*self.dt
         if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
             self.halt_event.set()
         self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
