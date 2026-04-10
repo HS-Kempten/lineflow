@@ -240,18 +240,8 @@ class Visualization:
     def draw_info(self):
         if self.info is not None:
             font = pygame.font.SysFont(None, 20)
-            time = font.render(
-                'T={:.2f}'.format(self.info['time']),
-                True,
-                'black',
-                'white'
-            )
-            n_parts = font.render(
-                f"#Parts={self.info['n_parts']}",
-                True,
-                'black',
-                'white'
-            )
+            time = font.render( 'T={:.2f}'.format(self.info['time']), True, 'black', 'white')
+            n_parts = font.render( f"#Parts={self.info['n_parts']}", True, 'black', 'white')
             self.screen.blit(time, time.get_rect(center=(30, 30)))
             self.screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
 
@@ -264,12 +254,7 @@ class Visualization:
                     actions = "".join(f"{action[0]}={action[1]}" for action in actor_actions[1].items())
                 else:
                     actions = "".join(f"{action[0]}={action[1]}, " for action in actor_actions[1].items())
-                text = font.render(
-                    f'{actor}: {actions}',
-                    True,
-                    'black',
-                    'white'
-                )
+                text = font.render( f'{actor}: {actions}', True, 'black', 'white')
                 self.screen.blit(text, text.get_rect(center=(self.center.x, 30+n*22)))
 
     def draw_user_input(self):
@@ -292,36 +277,29 @@ class Visualization:
         text = font.render("Shutting down...", True, 'black')
         self.screen.blit(text, text.get_rect(center=self.center))
 
-    def draw_cursor(self):
-        pygame.draw.circle(self.screen, 'blue', self.center, 10, 1)
+    def draw_crosshair(self):
+        pygame.draw.line( self.screen, 'red', self.center + (10,0), self.center - (10,0))
+        pygame.draw.line( self.screen, 'red', self.center + (0,10), self.center - (0,10))
 
     def draw_minimap(self):
         if self.line_bounds is None:
             self.find_line_bounds()
 
+        #setup minimap
         downscale = 5
         buffer = pygame.Vector2(20, 20)
         line_diagonal = self.line_bounds['lower_right'] - self.line_bounds['upper_left']
-        minimap_surface_size = pygame.Vector2(line_diagonal / downscale + buffer)
-        minimap_surface = pygame.Surface(minimap_surface_size)
-        minimap_surface.fill('white')
-        minimap_surface_pos = pygame.Vector2(
-            self.size.x - minimap_surface_size.x,
-            0
-        )
-        minimap_upper_left = pygame.Vector2(0,0)
-        draw_position = minimap_upper_left - self.line_bounds['upper_left'] / downscale + buffer /2
-        minimap_size = pygame.Vector2(self.size / downscale)
-        pygame.draw.rect(
-            minimap_surface,
-            'blue',
-            pygame.Rect(minimap_upper_left, minimap_surface_size),
-            width=2
-        )
+        minimap_size = pygame.Vector2(line_diagonal / downscale + buffer)
+        minimap = pygame.Surface(minimap_size)
+        minimap.fill('white')
+        minimap_pos = pygame.Vector2(self.size.x - minimap_size.x, 0)
+        draw_position = - self.line_bounds['upper_left'] / downscale + buffer /2
+        pygame.draw.rect(minimap, 'black', pygame.Rect((0,0), minimap_size), width=2)
 
+        #draw on minimap
         for connector in self.connectors:
             pygame.draw.line(
-                minimap_surface,
+                minimap,
                 'gray',
                 draw_position + connector['start'] / downscale,
                 draw_position + connector['end'] / downscale,
@@ -329,38 +307,40 @@ class Visualization:
         for station in self.stations:
             color = self.get_station_color(station)
             pygame.draw.circle(
-                minimap_surface,
+                minimap,
                 color,
                 draw_position + station['position'] / downscale,
                 5
             )
         for carrier in self.carriers:
             pygame.draw.circle(
-                minimap_surface,
+                minimap,
                 'orange',
                 draw_position + carrier['position'] / downscale,
                 3
             )
 
+        #draw outline of current view and crosshair
         view_outline = pygame.Rect(
             draw_position - self.view / downscale - self.size / downscale * self.viewpoint.z / 2,
             self.size / downscale * self.viewpoint.z
         )
         pygame.draw.line(
-            minimap_surface,
+            minimap,
             'red',
             draw_position - self.view / downscale + (3,0),
             draw_position - self.view / downscale - (3,0)
         )
         pygame.draw.line(
-            minimap_surface,
+            minimap,
             'red',
             draw_position - self.view / downscale + (0,3),
             draw_position - self.view / downscale - (0,3)
         )
+        pygame.draw.rect(minimap, 'red', view_outline, width=1)
         
-        pygame.draw.rect(minimap_surface, 'red', view_outline, width=1)
-        self.screen.blit(minimap_surface,minimap_surface_pos)
+        #blit minimap onto screen
+        self.screen.blit(minimap,minimap_pos)
         
     def check_user_input(self):
         for event in pygame.event.get():
@@ -428,7 +408,7 @@ class Visualization:
                     self.draw_user_input()
                     self.draw_info()
                     self.draw_actions()
-                    self.draw_cursor()
+                    self.draw_crosshair()
 
                 if self.viewpoint_is_set and self.show_minimap:
                     self.draw_minimap()
