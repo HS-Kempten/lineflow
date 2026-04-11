@@ -265,7 +265,7 @@ class Visualization:
             'black',
             'white'
         )
-        self.screen.blit(text,text.get_rect(left=50,top=self.size.y-40))
+        self.screen.blit(text, text.get_rect(left=50,top=self.size.y-40))
 
     def draw_loading(self):
         font = pygame.font.SysFont(None, 48)
