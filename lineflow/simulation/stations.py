@@ -171,11 +171,14 @@ class Station(StationaryObject):
             return 1.0
 
     def get_visualization_data(self):
+        mode = self.state['mode'].to_str()
+        if self.state['on'].to_str() is False:
+            mode = 'off'
         data = dict(
             type='station',
             name=self.name,
             position=self.position,
-            mode=self.state['mode'].to_str()
+            mode=mode
         )
         data = self._add_visualization_info(data)
         return data
