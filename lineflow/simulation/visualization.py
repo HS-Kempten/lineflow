@@ -49,6 +49,7 @@ class Communication:
         self.q_out = queue_out
         self.child = child
     def new_event(self, name):
+        #only use before starting second process
         event = Event()
         self.__setattr__(name, event)
         if self.child is not None:
@@ -102,7 +103,7 @@ class Visualization:
         x_positions = []
         y_positions = []
         for item in self.connection.data:
-            if item.istype('station'):
+            if 'position' in item:
                 x_positions.append(item.position.x)
                 y_positions.append(item.position.y)
         self.line_bounds = dict(
@@ -155,8 +156,7 @@ class Visualization:
                 self.draw_actions(item)
             else:
                 logger.warning(
-                    f"Unknown item type: {item['type']}"
-                    "Will not be visualized."
+                    f"Unknown item type: {item.type} will not be visualized."
                 )
 
     def draw_connector(self, connector):
