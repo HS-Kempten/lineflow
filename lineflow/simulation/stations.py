@@ -22,6 +22,7 @@ from lineflow.simulation.movable_objects import (
     Carrier,
     Worker,
 )
+from lineflow.simulation.visualization import Dataclass_at_Home
 
 
 class WorkerPool(StationaryObject):
@@ -170,7 +171,23 @@ class Station(StationaryObject):
         else:
             return 1.0
 
-    def get_visualization_data(self):
+    def get_visualization_data(self) -> Dataclass_at_Home:
+
+        data = Dataclass_at_Home(
+            type='station',
+            layer=2,
+            name=self.name,
+            position=self.position,
+        )
+        self._add_visualization_states(data)
+        self._add_visualization_info(data)
+        return data
+
+    def _add_visualization_states(self, data:Dataclass_at_Home) -> None:
+        for k in self.state.states:
+            data.__setattr__(k, self.state[k].to_str())
+
+    def get_visualization_data_old(self) -> dict:
         mode = self.state['mode'].to_str()
         if self.state['on'].to_str() is False:
             mode = 'off'
@@ -183,7 +200,11 @@ class Station(StationaryObject):
         data = self._add_visualization_info(data)
         return data
 
-    def _add_visualization_info(self, data):
+    def _add_visualization_info(self, data:Dataclass_at_Home) -> None:
+        if not self.is_automatic:
+            data.worker_skill = str(self.worker_skill)
+
+    def _add_visualization_info_old(self, data:dict) -> dict:
         if not self.is_automatic:
             data['worker_skill'] = str(self.worker_skill)
         return data
@@ -1148,14 +1169,14 @@ class Switch(Station):
         ].__self__._positions_slots[0]
 
     def _add_visualization_info(self, data):
-        data = super()._add_visualization_info(data)
+        super()._add_visualization_info(data)
         pos_buffer_in = self._get_buffer_in_position()
         pos_buffer_out = self._get_buffer_out_position()
 
         pos_in = pos_buffer_in + 0.5*(self.position - pos_buffer_in)
         pos_out = pos_buffer_out + 0.5*(self.position - pos_buffer_out)
 
-        data['pos_in_out'] = [pos_in, pos_out]
+        data.pos_in_out = [pos_in, pos_out]
         return data
 
     def _connect_to_input(self, buffer):
@@ -1381,8 +1402,8 @@ class Magazine(Station):
                 carrier = yield self.magazine.get()
 
     def _add_visualization_info(self, data):
-        data = super()._add_visualization_info(data)
-        data['magazine'] = self.state['carriers_in_magazine'].to_str()
+        super()._add_visualization_info(data)
+        data.magazine = self.state['carriers_in_magazine'].to_str()
         return data
 
     def get_carrier(self):

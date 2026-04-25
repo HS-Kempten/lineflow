@@ -6,6 +6,7 @@ from simpy import (
 )
 
 from lineflow.simulation.states import DiscreteState
+from lineflow.simulation.visualization import Dataclass_at_Home
 
 
 class MovableObject(object):
@@ -181,10 +182,14 @@ class Carrier(MovableObject):
         else:
             fill = parts/self.capacity
 
-        data = dict(type='carrier', position=self._position, fill=fill)
-
-        if with_text:
-            data['name'] = self.name
+        data = Dataclass_at_Home(
+            type='carrier',
+            layer=3,
+            name=self.name,
+            position=self._position,
+            fill=fill,
+            with_text=with_text,
+        )
         return data
 
     def move(self, position):
