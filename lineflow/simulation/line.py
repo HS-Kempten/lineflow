@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import start_visualization, Communication, Dataclass_at_Home
+from lineflow.simulation.visualization import start_visualization, setup_communication_pair, Dataclass_at_Home
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +55,10 @@ class Line:
         """
         Initializes the visualization process and the communication channels.
         """
-        self.connection = Communication(Queue(),Queue())
-        self.connection.new_event("stop_event", Event())
-        self.connection.new_event("halt_event", Event())
-        visu_connection = Communication(self.connection.q_out, self.connection.q_in)
-        visu_connection.new_event("stop_event", self.connection.stop_event)
-        visu_connection.new_event("halt_event", self.connection.halt_event)
+
+        self.connection, visu_connection = setup_communication_pair()
+        self.connection.new_event("stop_event")
+        self.connection.new_event("halt_event")
         self.visualization_process = Process(
             target=start_visualization,
             args=(visu_connection,)

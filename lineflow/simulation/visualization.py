@@ -28,20 +28,31 @@ class Dataclass_at_Home:
     def __lt__(self, other):
         return self.layer < other.layer
     def istype(self, type:str) -> bool:
-        type = type
         if self.type == type:
             return True
         else:
             return False
 
+def setup_communication_pair():
+    child = Communication(Queue(), Queue())
+    parent = Communication(child.q_out,child.q_in, child)
+    return (parent, child)
+
 class Communication:
-    """To be imported by line.py setup 2 instances and give 1 to visualization_process as arg."""
-    def __init__(self, queue_in, queue_out):
+    """
+    To be imported by line.py setup 2 instances and give 1 to visualization_process as arg.
+    or just import setup_communication_pair
+    """
+    def __init__(self, queue_in, queue_out,  child=None):
         self.data = None
         self.q_in = queue_in
         self.q_out = queue_out
-    def new_event(self, name, event):
+        self.child = child
+    def new_event(self, name):
+        event = Event()
         self.__setattr__(name, event)
+        if self.child is not None:
+            self.child.__setattr__(name, event)
     def recieve(self):
         try:
             self.data = self.q_in.get_nowait()
