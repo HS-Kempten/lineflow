@@ -35,7 +35,7 @@ class Dataclass_at_Home:
             return False
 
 class Communication:
-    """Sends or recieves things from a Queue. Can be imported by line.py can this just be a pipe(duplex)?"""
+    """To be imported by line.py setup 2 instances and give 1 to visualization_process as arg."""
     def __init__(self, queue_in, queue_out):
         self.data = None
         self.q_in = queue_in

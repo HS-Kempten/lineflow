@@ -187,27 +187,9 @@ class Station(StationaryObject):
         for k in self.state.states:
             data.__setattr__(k, self.state[k].to_str())
 
-    def get_visualization_data_old(self) -> dict:
-        mode = self.state['mode'].to_str()
-        if self.state['on'].to_str() is False:
-            mode = 'off'
-        data = dict(
-            type='station',
-            name=self.name,
-            position=self.position,
-            mode=mode
-        )
-        data = self._add_visualization_info(data)
-        return data
-
     def _add_visualization_info(self, data:Dataclass_at_Home) -> None:
         if not self.is_automatic:
             data.worker_skill = str(self.worker_skill)
-
-    def _add_visualization_info_old(self, data:dict) -> dict:
-        if not self.is_automatic:
-            data['worker_skill'] = str(self.worker_skill)
-        return data
 
     def _is_nok_part(self, component):
         return self.random.choice(
