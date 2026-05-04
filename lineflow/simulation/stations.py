@@ -174,7 +174,7 @@ class Station(StationaryObject):
     def get_visualization_data(self) -> Dataclass_at_Home:
 
         data = Dataclass_at_Home(
-            type='station',
+            type=str(self.__class__.__mro__[-3].__name__).lower(),
             layer=2,
             name=self.name,
             position=self.position,

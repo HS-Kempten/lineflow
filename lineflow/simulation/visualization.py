@@ -8,65 +8,77 @@ logger = logging.getLogger(__name__)
 
 class Dataclass_at_Home:
     """Dataclasses are dumb, so I made my own at home."""
+
     def __init__(self, type:str, layer:int, **kwargs):
         self.type = type
         self.layer = layer
         for k, v in kwargs.items():
             self.__setattr__(k, v)
+
     def __repr__(self):
         rep = f"{self.type}("
         for n, k in enumerate(self.__dict__):
             if not k == "type":
                 rep += f"{k}={self.__dict__[k]}"
-                if not n >= len(self.__dict__)-1:
+                if n < len(self.__dict__)-1:
                     rep += f","
         rep += f")" 
         return rep
+
     def __iter__(self):
         for k in self.__dict__:
             yield k
+
     def __lt__(self, other):
         return self.layer < other.layer
+
     def istype(self, type:str) -> bool:
         if self.type == type:
             return True
         else:
             return False
 
+
 def setup_communication_pair():
     child = Communication(Queue(), Queue())
-    parent = Communication(child.q_out,child.q_in, child)
-    return (parent, child)
+    parent = Communication(child.queue_out,child.queue_in, child)
+    return parent, child
 
 class Communication:
     """
     To be imported by line.py setup 2 instances and give 1 to visualization_process as arg.
     or just import setup_communication_pair
     """
+
     def __init__(self, queue_in, queue_out,  child=None):
         self.data = None
-        self.q_in = queue_in
-        self.q_out = queue_out
+        self.queue_in = queue_in
+        self.queue_out = queue_out
         self.child = child
+
     def new_event(self, name):
         #only use before starting second process
         event = Event()
         self.__setattr__(name, event)
         if self.child is not None:
             self.child.__setattr__(name, event)
+
     def recieve(self):
         try:
-            self.data = self.q_in.get_nowait()
+            self.data = self.queue_in.get_nowait()
         except Empty:
             logger.warning(f"No data to read!")
+
     def recieve_all(self):
         while True:
             try:
-                self.data = self.q_in.get_nowait()
+                self.data = self.queue_in.get_nowait()
             except Empty:
                 break
+
     def send(self, data):
-        self.q_out.put(data)
+        self.queue_out.put(data)
+
 
 class Visualization:
     
@@ -143,18 +155,18 @@ class Visualization:
             self.connection.data.sort()
             
     def draw(self):
+        self.tooltip = None
+        draw_mapping = dict(
+            carrier=self.draw_carrier,
+            connector=self.draw_connector,
+            station=self.draw_station,
+            info=self.draw_info,
+            actions=self.draw_actions
+        )
         for item in self.connection.data:
-            if item.istype('carrier'):
-                self.draw_carrier(item)
-            elif item.istype('connector'):
-                self.draw_connector(item)
-            elif item.istype('station'):
-                self.draw_station(item)
-            elif item.istype('info'):
-                self.draw_info(item)
-            elif item.istype('actions'):
-                self.draw_actions(item)
-            else:
+            try:
+                draw_mapping[item.type](item)
+            except KeyError:
                 logger.warning(
                     f"Unknown item type: {item.type} will not be visualized."
                 )
@@ -239,6 +251,45 @@ class Visualization:
                     self.center + (self.view + pos)/self.viewpoint.z,
                     width=int(5/self.viewpoint.z)
                 )
+        station.size = 30
+        if self.hover_over(station):
+            try:
+                p_time = round(float(station.processing_time), 2)
+            except AttributeError:
+                p_time = "NAN"
+            self.tooltip = f"P_time: {p_time}"
+
+    def hover_over(self, obj):
+        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
+        obj_pos = self.center + (self.view + obj.position)/self.viewpoint.z
+        diff_x = abs(obj_pos.x - mouse_pos.x)
+        diff_y = abs(obj_pos.y - mouse_pos.y)
+        max_diff = obj.size/2/self.viewpoint.z
+        if diff_x < max_diff and diff_y < max_diff:
+            return True
+        else:
+            return False
+
+    def draw_tooltip(self):
+        mouse_pos = pygame.Vector2(pygame.mouse.get_pos()) + (10, 0)
+        tooltip_window = pygame.Rect(mouse_pos,(100, 30))
+        pygame.draw.rect(
+            self.screen,
+            'white',
+            tooltip_window,
+            border_radius = 10
+        )
+        pygame.draw.rect(
+            self.screen,
+            'black',
+            tooltip_window,
+            width = 2,
+            border_radius = 10
+        )
+        font = pygame.font.SysFont(None, 20)
+        tooltip_text = font.render(self.tooltip,True,'black')
+        self.screen.blit(tooltip_text, mouse_pos + (5, 8))
+
 
     def draw_carrier(self, carrier):
         height = 10
@@ -441,6 +492,9 @@ class Visualization:
                     self.draw_user_input()
                     self.draw_crosshair()
 
+                if self.tooltip is not None:
+                    self.draw_tooltip()
+
                 if self.viewpoint_is_set and self.show_minimap:
                     self.draw_minimap()
 
@@ -454,6 +508,7 @@ class Visualization:
         finally:
             pygame.quit()
             self.connection.stop_event.set()
+
 
 def start_visualization(connection, size=None, viewpoint=None):
     visualization = Visualization(connection=connection, size=size, viewpoint=viewpoint)
