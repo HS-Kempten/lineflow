@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import start_visualization, setup_communication_pair, Dataclass_at_Home
+from lineflow.simulation.visualization import start_visualization, setup_communication_pair, ConnectionData
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +214,7 @@ class Line:
                     data.extend(obj.get_visualization_data())
 
             data.append(
-                Dataclass_at_Home(
+                ConnectionData(
                     type='info',
                     layer=10,
                     time=self.env.now,
@@ -222,7 +222,7 @@ class Line:
                 )
             )
             if actions is not None:
-                data.append(Dataclass_at_Home(type='actions',layer=11, actions=actions))
+                data.append(ConnectionData(type='actions',layer=11, actions=actions))
             self.connection.send(data)
 
     def apply(self, values):

@@ -6,8 +6,8 @@ from multiprocessing import Queue, Event
 
 logger = logging.getLogger(__name__)
 
-class Dataclass_at_Home:
-    """Dataclasses are dumb, so I made my own at home."""
+class ConnectionData:
+    """Object for transfering data to Visualization"""
 
     def __init__(self, type:str, layer:int, **kwargs):
         self.type = type
@@ -31,12 +31,6 @@ class Dataclass_at_Home:
 
     def __lt__(self, other):
         return self.layer < other.layer
-
-    def istype(self, type:str) -> bool:
-        if self.type == type:
-            return True
-        else:
-            return False
 
 
 def setup_communication_pair():
@@ -290,7 +284,6 @@ class Visualization:
         tooltip_text = font.render(self.tooltip,True,'black')
         self.screen.blit(tooltip_text, mouse_pos + (5, 8))
 
-
     def draw_carrier(self, carrier):
         height = 10
         width = 30
@@ -383,14 +376,14 @@ class Visualization:
 
         #draw on minimap
         for item in self.connection.data:
-            if item.istype('connector'):
+            if item.type == 'connector':
                 pygame.draw.line(
                     minimap,
                     'gray',
                     draw_position + item.start / downscale,
                     draw_position + item.end / downscale,
                 )
-            if item.istype('station'):
+            if item.type == 'station':
                 color = self.get_station_color(item)
                 pygame.draw.circle(
                     minimap,
@@ -398,7 +391,7 @@ class Visualization:
                     draw_position + item.position / downscale,
                     5
                 )
-            if item.istype('carrier'):
+            if item.type == 'carrier':
                 pygame.draw.circle(
                     minimap,
                     'orange',

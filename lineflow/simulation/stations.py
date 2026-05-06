@@ -22,7 +22,7 @@ from lineflow.simulation.movable_objects import (
     Carrier,
     Worker,
 )
-from lineflow.simulation.visualization import Dataclass_at_Home
+from lineflow.simulation.visualization import ConnectionData
 
 
 class WorkerPool(StationaryObject):
@@ -171,9 +171,9 @@ class Station(StationaryObject):
         else:
             return 1.0
 
-    def get_visualization_data(self) -> Dataclass_at_Home:
+    def get_visualization_data(self) -> ConnectionData:
 
-        data = Dataclass_at_Home(
+        data = ConnectionData(
             type=str(self.__class__.__mro__[-3].__name__).lower(),
             layer=2,
             name=self.name,
@@ -181,13 +181,15 @@ class Station(StationaryObject):
         )
         self._add_visualization_states(data)
         self._add_visualization_info(data)
+        if not 'processing_time' in data:
+            data.processing_time = self.processing_time
         return data
 
-    def _add_visualization_states(self, data:Dataclass_at_Home) -> None:
+    def _add_visualization_states(self, data:ConnectionData) -> None:
         for k in self.state.states:
             data.__setattr__(k, self.state[k].to_str())
 
-    def _add_visualization_info(self, data:Dataclass_at_Home) -> None:
+    def _add_visualization_info(self, data:ConnectionData) -> None:
         if not self.is_automatic:
             data.worker_skill = str(self.worker_skill)
 
