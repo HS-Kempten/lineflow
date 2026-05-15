@@ -854,6 +854,7 @@ class Source(Station):
                 name='waiting_time', 
                 categories=np.arange(0, 100, self.waiting_time_step), 
                 is_actionable=self.actionable_waiting_time,
+                is_observable=self.actionable_waiting_time,
             ),
             TokenState(name='carrier', is_observable=False),
             TokenState(name='part', is_observable=False),
