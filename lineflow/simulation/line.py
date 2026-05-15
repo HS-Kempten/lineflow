@@ -232,9 +232,10 @@ class Line:
         if self.connection.data is not None:
             for object_name in self.connection.data.keys():
                 obj = self._objects[object_name]
-                if self.connection.data[object_name] == 'on':
-                    obj.turn_on()
-                elif self.connection.data[object_name] == 'off':
+                if self.connection.data[object_name]['on'] == 1:
+                    for n in obj.turn_on():
+                        n
+                elif self.connection.data[object_name]['on'] == 0:
                     obj.turn_off()
 
     def apply(self, values):

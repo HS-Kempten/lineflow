@@ -145,10 +145,10 @@ class UserInput:
     def dropdown_menu(self):
         if self.modify_obj.on:
             dropdown_input = f"Turn Off"
-            state = 'off'
+            state = 0
         elif not self.modify_obj.on:
             dropdown_input = f"Turn On"
-            state = 'on'
+            state =  1
 
         self.draw_dropdown_menu(dropdown_input)
 
@@ -157,7 +157,7 @@ class UserInput:
             self.dropdown = False
         elif pygame.mouse.get_pressed(num_buttons=3)[0]:
             print(dropdown_input + f" {self.modify_obj.name}")
-            self.connection.send({self.modify_obj.name: state})
+            self.connection.send({self.modify_obj.name:{'on': state}})
             self.dropdown = False
         else:
             pass
