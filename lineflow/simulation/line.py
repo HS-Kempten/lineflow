@@ -225,6 +225,18 @@ class Line:
                 data.append(ConnectionData(type='actions',layer=11, actions=actions))
             self.connection.send(data)
 
+    def _recieve_data_from_visualization(self):
+        self.connection.recieve()
+
+    def apply_connection_actions(self):
+        if self.connection.data is not None:
+            for object_name in self.connection.data.keys():
+                obj = self._objects[object_name]
+                if self.connection.data[object_name] == 'on':
+                    obj.turn_on()
+                elif self.connection.data[object_name] == 'off':
+                    obj.turn_off()
+
     def apply(self, values):
         for object_name in values.keys():
             self._objects[object_name].apply(values[object_name])
@@ -311,6 +323,8 @@ class Line:
 
             if visualize:
                 self._send_data_to_visualization(actions)
+                self._recieve_data_from_visualization()
+                self.apply_connection_actions()
 
         if visualize:
             self._close_visualization()
