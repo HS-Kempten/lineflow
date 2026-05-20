@@ -151,6 +151,8 @@ class Station(StationaryObject):
 
         self.worker_assignments = {}
 
+        self.processing_timeline = []
+
     @property
     def is_automatic(self):
         return self.worker_pool is None
@@ -183,6 +185,8 @@ class Station(StationaryObject):
         self._add_visualization_info(data)
         if not 'processing_time' in data:
             data.processing_time = self.processing_time
+        self.processing_timeline.append(data.processing_time)
+        data.processing_timeline = self.processing_timeline
         return data
 
     def _add_visualization_states(self, data:ConnectionData) -> None:

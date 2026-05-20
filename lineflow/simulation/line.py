@@ -236,7 +236,7 @@ class Line:
                     for n in obj.turn_on():
                         n
                 elif self.connection.data[object_name]['on'] == 0:
-                    obj.turn_off()
+                    yield obj.turn_off()
 
     def apply(self, values):
         for object_name in values.keys():

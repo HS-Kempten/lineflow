@@ -88,6 +88,14 @@ class UserInput:
         self.leftclick_pos = pygame.Vector2(0, 0)
         self.dropdown = False
 
+    @property
+    def rightclick(self):
+        return pygame.mouse.get_pressed(num_buttons=3)[0]
+    
+    @property
+    def leftclick(self):
+        return pygame.mouse.get_pressed(num_buttons=3)[2]
+
     def check(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -101,7 +109,7 @@ class UserInput:
         self.mouse_rel = pygame.Vector2(pygame.mouse.get_rel())
         self.mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
 
-        if pygame.mouse.get_pressed(num_buttons=3)[0] and self.dropdown is False:
+        if self.rightclick and self.dropdown is False:
             self.visu.viewpoint.x += self.mouse_rel.x * self.visu.viewpoint.z
             self.visu.viewpoint.y += self.mouse_rel.y * self.visu.viewpoint.z
 
@@ -123,10 +131,6 @@ class UserInput:
         self.visu.viewpoint.z = max(0.5,min(10,self.visu.viewpoint.z))
         self.visu.view = pygame.Vector2(self.visu.viewpoint.x, self.visu.viewpoint.y)
         return True
-
-    @property
-    def leftclick(self):
-        return pygame.mouse.get_pressed(num_buttons=3)[2]
 
     def hover_over(self, obj):
         obj_pos = self.visu.center + (self.visu.view + obj.position)/self.visu.viewpoint.z
@@ -155,8 +159,7 @@ class UserInput:
         dropdown_vector = self.mouse_pos - self.leftclick_pos
         if dropdown_vector.x > 100 or dropdown_vector.x < -5 or dropdown_vector.y < -5 or dropdown_vector.y > 30:
             self.dropdown = False
-        elif pygame.mouse.get_pressed(num_buttons=3)[0]:
-            print(dropdown_input + f" {self.modify_obj.name}")
+        elif self.rightclick:
             self.connection.send({self.modify_obj.name:{'on': state}})
             self.dropdown = False
         else:
@@ -339,16 +342,19 @@ class Visualization:
                 )
             )
         if 'pos_in_out' in station:
+            switch_color = 'gray'
+            if not station.on:
+                switch_color = pygame.Color(100,100,100)
             pygame.draw.circle(
                 self.screen,
-                'gray',
+                switch_color,
                 self.center + (self.view + station.position)/self.viewpoint.z,
                 6/self.viewpoint.z
             )
             for pos in station.pos_in_out:
                 pygame.draw.line(
                     self.screen,
-                    'gray',
+                    switch_color,
                     self.center + (self.view + station.position)/self.viewpoint.z,
                     self.center + (self.view + pos)/self.viewpoint.z,
                     width=int(5/self.viewpoint.z)
@@ -379,6 +385,9 @@ class Visualization:
         font = pygame.font.SysFont(None, 20)
         tooltip_text = font.render(self.tooltip,True,'black')
         self.screen.blit(tooltip_text, self.user_input.mouse_pos + (15, 8))
+
+    def draw_timeline(self):
+        
 
     def draw_carrier(self, carrier):
         height = 10
