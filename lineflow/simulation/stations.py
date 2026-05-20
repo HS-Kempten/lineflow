@@ -1152,7 +1152,7 @@ class Switch(Station):
             self.state['index_buffer_out'].value
         ].__self__._positions_slots[0]
 
-    def _add_visualization_info(self, data):
+    def _add_visualization_info(self, data:VisualizationData) -> None:
         super()._add_visualization_info(data)
         pos_buffer_in = self._get_buffer_in_position()
         pos_buffer_out = self._get_buffer_out_position()
@@ -1161,7 +1161,6 @@ class Switch(Station):
         pos_out = pos_buffer_out + 0.5*(self.position - pos_buffer_out)
 
         data.pos_in_out = [pos_in, pos_out]
-        return data
 
     def _connect_to_input(self, buffer):
         self.buffer_in.append(buffer.connect_to_output(self))
@@ -1385,10 +1384,9 @@ class Magazine(Station):
             for _ in range(abs(diff)):
                 carrier = yield self.magazine.get()
 
-    def _add_visualization_info(self, data):
+    def _add_visualization_info(self, data:VisualizationData) -> None:
         super()._add_visualization_info(data)
         data.magazine = self.state['carriers_in_magazine'].to_str()
-        return data
 
     def get_carrier(self):
         # First check if Magazine is allowed to create unlimited carriers

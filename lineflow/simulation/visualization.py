@@ -259,10 +259,7 @@ class Visualization:
         diff_x = abs(obj_pos.x - mouse_pos.x)
         diff_y = abs(obj_pos.y - mouse_pos.y)
         max_diff = obj.size/2/self.viewpoint.z
-        if diff_x < max_diff and diff_y < max_diff:
-            return True
-        else:
-            return False
+        return diff_x < max_diff and diff_y < max_diff
 
     def draw_tooltip(self):
         mouse_pos = pygame.Vector2(pygame.mouse.get_pos()) + (10, 0)
