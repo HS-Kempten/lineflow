@@ -1152,7 +1152,7 @@ class Switch(Station):
             self.state['index_buffer_out'].value
         ].__self__._positions_slots[0]
 
-    def _add_visualization_info(self, data:VisualizationData) -> None:
+    def _add_visualization_info(self, data:ConnectionData) -> None:
         super()._add_visualization_info(data)
         pos_buffer_in = self._get_buffer_in_position()
         pos_buffer_out = self._get_buffer_out_position()
@@ -1384,7 +1384,7 @@ class Magazine(Station):
             for _ in range(abs(diff)):
                 carrier = yield self.magazine.get()
 
-    def _add_visualization_info(self, data:VisualizationData) -> None:
+    def _add_visualization_info(self, data:ConnectionData) -> None:
         super()._add_visualization_info(data)
         data.magazine = self.state['carriers_in_magazine'].to_str()
 
