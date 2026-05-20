@@ -61,7 +61,7 @@ class Communication:
         try:
             self.data = self.queue_in.get_nowait()
         except Empty:
-            logger.warning(f"No data to read!")
+            self.data = None
 
     def recieve_all(self):
         while True:
@@ -72,6 +72,115 @@ class Communication:
 
     def send(self, data):
         self.queue_out.put(data)
+
+    def clear_data(self):
+        self.data = None
+
+
+class UserInput:
+    def __init__(self, visualization, connection):
+        self.visu = visualization
+        self.connection = connection
+        self.mouse_pos = pygame.Vector2(0, 0)
+        self.mouse_rel = pygame.Vector2(0, 0)
+
+        self.modify_obj = None
+        self.leftclick_pos = pygame.Vector2(0, 0)
+        self.dropdown = False
+
+    @property
+    def rightclick(self):
+        return pygame.mouse.get_pressed(num_buttons=3)[0]
+    
+    @property
+    def leftclick(self):
+        return pygame.mouse.get_pressed(num_buttons=3)[2]
+
+    def check(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_m:
+                    self.visu.show_minimap = not self.visu.show_minimap
+            elif event.type == pygame.MOUSEWHEEL:
+                self.visu.viewpoint.z += 5 * event.y * self.visu.viewpoint.z * self.visu.dt
+    
+        self.mouse_rel = pygame.Vector2(pygame.mouse.get_rel())
+        self.mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
+
+        if self.rightclick and self.dropdown is False:
+            self.visu.viewpoint.x += self.mouse_rel.x * self.visu.viewpoint.z
+            self.visu.viewpoint.y += self.mouse_rel.y * self.visu.viewpoint.z
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_q]:
+            self.visu.viewpoint.z -= 3*self.visu.viewpoint.z*self.visu.dt
+        if keys[pygame.K_e]:
+            self.visu.viewpoint.z += 3*self.visu.viewpoint.z*self.visu.dt
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            self.visu.viewpoint.y += 300*self.visu.viewpoint.z*self.visu.dt
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            self.visu.viewpoint.y -= 300*self.visu.viewpoint.z*self.visu.dt
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            self.visu.viewpoint.x += 300*self.visu.viewpoint.z*self.visu.dt
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            self.visu.viewpoint.x -= 300*self.visu.viewpoint.z*self.visu.dt
+        if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
+            self.visu.connection.halt_event.set()
+        self.visu.viewpoint.z = max(0.5,min(10,self.visu.viewpoint.z))
+        self.visu.view = pygame.Vector2(self.visu.viewpoint.x, self.visu.viewpoint.y)
+        return True
+
+    def hover_over(self, obj):
+        obj_pos = self.visu.center + (self.visu.view + obj.position)/self.visu.viewpoint.z
+        diff_x = abs(obj_pos.x - self.mouse_pos.x)
+        diff_y = abs(obj_pos.y - self.mouse_pos.y)
+        max_diff = obj.size/2/self.visu.viewpoint.z
+        if diff_x < max_diff and diff_y < max_diff:
+            if self.leftclick and self.dropdown is False:
+                self.dropdown = True
+                self.modify_obj = obj
+                self.leftclick_pos = self.mouse_pos
+            return True
+        else:
+            return False
+
+    def dropdown_menu(self):
+        if self.modify_obj.on:
+            dropdown_input = f"Turn Off"
+            state = 0
+        elif not self.modify_obj.on:
+            dropdown_input = f"Turn On"
+            state =  1
+
+        self.draw_dropdown_menu(dropdown_input)
+
+        dropdown_vector = self.mouse_pos - self.leftclick_pos
+        if dropdown_vector.x > 100 or dropdown_vector.x < -5 or dropdown_vector.y < -5 or dropdown_vector.y > 30:
+            self.dropdown = False
+        elif self.rightclick:
+            self.connection.send({self.modify_obj.name:{'on': state}})
+            self.dropdown = False
+        else:
+            pass
+
+    def draw_dropdown_menu(self, dropdown_input):
+        dropdown_window = pygame.Rect(self.leftclick_pos,(100, 30))
+        pygame.draw.rect(
+            self.visu.screen,
+            'white',
+            dropdown_window
+        )
+        pygame.draw.rect(
+            self.visu.screen,
+            'black',
+            dropdown_window,
+            width = 2
+        )
+        font = pygame.font.SysFont(None, 20)
+        dropdown_text = font.render(dropdown_input,True,'black')
+        self.visu.screen.blit(dropdown_text, self.leftclick_pos + (5, 8))
 
 
 class Visualization:
@@ -100,6 +209,8 @@ class Visualization:
 
         self.line_bounds = None
         self.show_minimap = True
+
+        self.user_input = UserInput(self, self.connection)
 
     @property
     def viewpoint_is_set(self):
@@ -191,7 +302,7 @@ class Visualization:
             'failing': 'red'
         }
         color = color_mapping[station.mode]
-        if station.on is False:
+        if not station.on:
             color = 'gray'
         return color
 
@@ -231,42 +342,33 @@ class Visualization:
                 )
             )
         if 'pos_in_out' in station:
+            switch_color = 'gray'
+            if not station.on:
+                switch_color = pygame.Color(100,100,100)
             pygame.draw.circle(
                 self.screen,
-                'gray',
+                switch_color,
                 self.center + (self.view + station.position)/self.viewpoint.z,
                 6/self.viewpoint.z
             )
             for pos in station.pos_in_out:
                 pygame.draw.line(
                     self.screen,
-                    'gray',
+                    switch_color,
                     self.center + (self.view + station.position)/self.viewpoint.z,
                     self.center + (self.view + pos)/self.viewpoint.z,
                     width=int(5/self.viewpoint.z)
                 )
         station.size = 30
-        if self.hover_over(station):
+        if self.user_input.hover_over(station):
             try:
                 p_time = round(float(station.processing_time), 2)
             except AttributeError:
                 p_time = "NAN"
             self.tooltip = f"P_time: {p_time}"
 
-    def hover_over(self, obj):
-        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
-        obj_pos = self.center + (self.view + obj.position)/self.viewpoint.z
-        diff_x = abs(obj_pos.x - mouse_pos.x)
-        diff_y = abs(obj_pos.y - mouse_pos.y)
-        max_diff = obj.size/2/self.viewpoint.z
-        if diff_x < max_diff and diff_y < max_diff:
-            return True
-        else:
-            return False
-
     def draw_tooltip(self):
-        mouse_pos = pygame.Vector2(pygame.mouse.get_pos()) + (10, 0)
-        tooltip_window = pygame.Rect(mouse_pos,(100, 30))
+        tooltip_window = pygame.Rect(self.user_input.mouse_pos + (10, 0),(100, 30))
         pygame.draw.rect(
             self.screen,
             'white',
@@ -282,7 +384,10 @@ class Visualization:
         )
         font = pygame.font.SysFont(None, 20)
         tooltip_text = font.render(self.tooltip,True,'black')
-        self.screen.blit(tooltip_text, mouse_pos + (5, 8))
+        self.screen.blit(tooltip_text, self.user_input.mouse_pos + (15, 8))
+
+    def draw_timeline(self):
+        
 
     def draw_carrier(self, carrier):
         height = 10
@@ -421,42 +526,6 @@ class Visualization:
         #blit minimap onto screen
         self.screen.blit(minimap,minimap_pos)
         
-    def check_user_input(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_m:
-                    self.show_minimap = not self.show_minimap
-            elif event.type == pygame.MOUSEWHEEL:
-                self.viewpoint.z += 5 * event.y * self.viewpoint.z * self.dt
-    
-        _mouse = pygame.mouse.get_pressed(num_buttons=3)
-        mouse_rel = pygame.mouse.get_rel()
-
-        if _mouse[0]:
-            self.viewpoint.x += mouse_rel[0] * self.viewpoint.z
-            self.viewpoint.y += mouse_rel[1] * self.viewpoint.z
-
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_q]:
-            self.viewpoint.z -= 3*self.viewpoint.z*self.dt
-        if keys[pygame.K_e]:
-            self.viewpoint.z += 3*self.viewpoint.z*self.dt
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            self.viewpoint.y += 300*self.viewpoint.z*self.dt
-        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            self.viewpoint.y -= 300*self.viewpoint.z*self.dt
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            self.viewpoint.x += 300*self.viewpoint.z*self.dt
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            self.viewpoint.x -= 300*self.viewpoint.z*self.dt
-        if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
-            self.connection.halt_event.set()
-        self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
-        self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
-        return True
-
     def run(self):
 
         pygame.init()
@@ -468,7 +537,7 @@ class Visualization:
                 if self.connection.stop_event.is_set():
                     break
 
-                if self.viewpoint_is_set and not self.check_user_input():
+                if self.viewpoint_is_set and not self.user_input.check():
                     break
 
                 self.check_connection()
@@ -485,8 +554,10 @@ class Visualization:
                     self.draw_user_input()
                     self.draw_crosshair()
 
-                if self.tooltip is not None:
+                if self.tooltip is not None and self.user_input.dropdown is False:
                     self.draw_tooltip()
+                elif self.user_input.dropdown:
+                    self.user_input.dropdown_menu()
 
                 if self.viewpoint_is_set and self.show_minimap:
                     self.draw_minimap()
