@@ -418,12 +418,11 @@ class Assembly(Station):
 
         while True:
             if self.is_on():
-
-                yield self.env.process(self.request_workers())
-                self.state['n_workers'].update(self.n_workers)
                 # Wait to get part from buffer_in
                 yield self.env.process(self.set_to_waiting())
                 carrier = yield self.env.process(self.buffer_in())
+                yield self.env.process(self.request_workers())
+                self.state['n_workers'].update(self.n_workers)
 
                 # Update current_carrier and count parts of carrier
                 self.state['carrier'].update(carrier.name)
@@ -553,11 +552,11 @@ class Process(Station):
 
         while True:
             if self.is_on():
-                yield self.env.process(self.request_workers())
-                self.state['n_workers'].update(self.n_workers)
                 # Wait to get part from buffer_in
                 yield self.env.process(self.set_to_waiting())
                 carrier = yield self.env.process(self.buffer_in())
+                yield self.env.process(self.request_workers())
+                self.state['n_workers'].update(self.n_workers)
                 self.state['carrier'].update(carrier.name)
 
                 yield self.env.process(self.set_to_work())
@@ -855,6 +854,7 @@ class Source(Station):
                 name='waiting_time', 
                 categories=np.arange(0, 100, self.waiting_time_step), 
                 is_actionable=self.actionable_waiting_time,
+                is_observable=self.actionable_waiting_time,
             ),
             TokenState(name='carrier', is_observable=False),
             TokenState(name='part', is_observable=False),
