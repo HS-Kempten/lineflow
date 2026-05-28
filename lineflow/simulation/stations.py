@@ -22,6 +22,7 @@ from lineflow.simulation.movable_objects import (
     Carrier,
     Worker,
 )
+from lineflow.simulation.visualization import ConnectionData
 
 
 class WorkerPool(StationaryObject):
@@ -170,23 +171,27 @@ class Station(StationaryObject):
         else:
             return 1.0
 
-    def get_visualization_data(self):
-        mode = self.state['mode'].to_str()
-        if self.state['on'].to_str() is False:
-            mode = 'off'
-        data = dict(
-            type='station',
+    def get_visualization_data(self) -> ConnectionData:
+
+        data = ConnectionData(
+            type=str(self.__class__.__mro__[-3].__name__).lower(),
+            layer=2,
             name=self.name,
             position=self.position,
-            mode=mode
         )
-        data = self._add_visualization_info(data)
+        self._add_visualization_states(data)
+        self._add_visualization_info(data)
+        if not 'processing_time' in data:
+            data.processing_time = self.processing_time
         return data
 
-    def _add_visualization_info(self, data):
+    def _add_visualization_states(self, data:ConnectionData) -> None:
+        for k in self.state.states:
+            data.__setattr__(k, self.state[k].to_str())
+
+    def _add_visualization_info(self, data:ConnectionData) -> None:
         if not self.is_automatic:
-            data['worker_skill'] = str(self.worker_skill)
-        return data
+            data.worker_skill = str(self.worker_skill)
 
     def _is_nok_part(self, component):
         return self.random.choice(
@@ -1147,16 +1152,15 @@ class Switch(Station):
             self.state['index_buffer_out'].value
         ].__self__._positions_slots[0]
 
-    def _add_visualization_info(self, data):
-        data = super()._add_visualization_info(data)
+    def _add_visualization_info(self, data:ConnectionData) -> None:
+        super()._add_visualization_info(data)
         pos_buffer_in = self._get_buffer_in_position()
         pos_buffer_out = self._get_buffer_out_position()
 
         pos_in = pos_buffer_in + 0.5*(self.position - pos_buffer_in)
         pos_out = pos_buffer_out + 0.5*(self.position - pos_buffer_out)
 
-        data['pos_in_out'] = [pos_in, pos_out]
-        return data
+        data.pos_in_out = [pos_in, pos_out]
 
     def _connect_to_input(self, buffer):
         self.buffer_in.append(buffer.connect_to_output(self))
@@ -1380,10 +1384,9 @@ class Magazine(Station):
             for _ in range(abs(diff)):
                 carrier = yield self.magazine.get()
 
-    def _add_visualization_info(self, data):
-        data = super()._add_visualization_info(data)
-        data['magazine'] = self.state['carriers_in_magazine'].to_str()
-        return data
+    def _add_visualization_info(self, data:ConnectionData) -> None:
+        super()._add_visualization_info(data)
+        data.magazine = self.state['carriers_in_magazine'].to_str()
 
     def get_carrier(self):
         # First check if Magazine is allowed to create unlimited carriers

@@ -8,6 +8,7 @@ from lineflow.simulation.states import (
     NumericState,
     DiscreteState,
 )
+from lineflow.simulation.visualization import ConnectionData
 
 
 class Connector(StationaryObject):
@@ -119,14 +120,14 @@ class Buffer(Connector):
             
     def get_visualization_data(self):
         data = [
-            dict(
+            ConnectionData(
                 type='connector',
+                layer=1,
                 start=self._position_input,
                 end=self._position_output,
                 n_slots=self.capacity,
             )
         ]
-
         for carrier in self.carriers.values():
             data.append(carrier.get_visualization_data(with_text=True))
 

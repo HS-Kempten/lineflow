@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import start_visualization
+from lineflow.simulation.visualization import start_visualization, setup_communication_pair, ConnectionData
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +55,13 @@ class Line:
         """
         Initializes the visualization process and the communication channels.
         """
-        self.stop_event = Event()
-        self.halt_event = Event()
-        self.connection = Queue()
+
+        self.connection, visu_connection = setup_communication_pair()
+        self.connection.new_event("stop_event")
+        self.connection.new_event("halt_event")
         self.visualization_process = Process(
             target=start_visualization,
-            args=(self.connection, self.stop_event, self.halt_event)
+            args=(visu_connection,)
         )
 
         for _, obj in self._objects.items():
@@ -71,7 +72,7 @@ class Line:
 
     def _close_visualization(self):
         if hasattr(self, 'visualization_process'):
-            self.stop_event.set()
+            self.connection.stop_event.set()
             self.visualization_process.join()
 
 
@@ -202,7 +203,7 @@ class Line:
             o.register(self.env)
 
     def _send_data_to_visualization(self, actions=None):
-        if not self.stop_event.is_set():
+        if not self.connection.stop_event.is_set():
             data = []
 
             for _, obj in self._objects.items():
@@ -213,15 +214,16 @@ class Line:
                     data.extend(obj.get_visualization_data())
 
             data.append(
-                dict(
-                    type="info",
+                ConnectionData(
+                    type='info',
+                    layer=10,
                     time=self.env.now,
                     n_parts=self.get_n_parts_produced()
                 )
             )
             if actions is not None:
-                data.append(dict(type="actions", actions=actions))
-            self.connection.put(data)
+                data.append(ConnectionData(type='actions',layer=11, actions=actions))
+            self.connection.send(data)
 
     def apply(self, values):
         for object_name in values.keys():
@@ -292,7 +294,7 @@ class Line:
         )
 
         while self.env.now < simulation_end:
-            if visualize and self.halt_event.is_set():
+            if visualize and self.connection.halt_event.is_set():
                 break
 
             pbar.update(self.env.now - now)
