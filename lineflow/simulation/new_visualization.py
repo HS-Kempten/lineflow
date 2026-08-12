@@ -17,8 +17,9 @@ class View:
 #class attribute of VisuObject? or something else
 visu_objects = []
 
+
+#Definition of Visualization specific Objects
 class VisuObject:
-    
     def __init__(self, position:pygame.Vector2) -> None:
         self.position = position
         visu_objects.append(self)
@@ -28,9 +29,12 @@ class VisuObject:
 
 
 class VisuBlock(VisuObject):
-    height = 30
-    width = 30
-    color = "blue"
+    def __init__(self, position):
+        super().__init__(position=position)
+        self.height = 30
+        self.width = 30
+        self.radius = 8
+        self.color = "blue"
     
     @property
     def Rect(self) -> pygame.Rect:
@@ -38,16 +42,49 @@ class VisuBlock(VisuObject):
             Window.center.x + (view.x + self.position.x - self.width/2)/view.z,
             Window.center.y + (view.y + self.position.y - self.height/2)/view.z,
             self.width/view.z,
-            self.height/view.z
+            self.height/view.z,
         )
         return Rect
-    
-    def draw(self, surface:pygame.Surface, scale:float=1.0) -> None:
+
+    @property
+    def hovered(self) -> bool:
+        return self.Rect.collidepoint(pygame.mouse.get_pos())
+
+    def renderBlock(self, surface) -> None:
         pygame.draw.rect(
             surface,
             self.color,
-            self.Rect
+            self.Rect,
+            border_radius = int(self.radius/view.z)
         )
+    
+    def draw(self, surface:pygame.Surface) -> None:
+        self.renderBlock(surface)
+
+    def draw_simple(self, surface, offset, scale):
+        pygame.draw.circle(
+            surface,
+            self.color,
+            offset + self.position*scale,
+            int(self.height/3 * scale)
+        )
+
+
+class VisuStation(VisuBlock):
+    name = "Station"
+    def renderName(self, surface) -> None:
+        font = pygame.font.SysFont(None, int(20/view.z))
+        name_text = font.render(self.name, True, 'black')
+        surface.blit(
+            name_text,
+            name_text.get_rect(
+                center=Window.center + (view.offset + self.position + (0, -0.7*self.height))/view.z
+            )
+        )
+
+    def draw(self, surface:pygame.Surface) -> None:
+        self.renderBlock(surface)
+        self.renderName(surface)
 
 
 class VisuLine(VisuObject):
@@ -58,7 +95,12 @@ class VisuLine(VisuObject):
         super().__init__(position=position)
         self.endpoint = endpoint
 
-    def draw(self, surface:pygame.Surface, scale:float=1.0) -> None:
+    @property
+    def hovered(self) -> bool:
+        #calculate via polytope
+        return False
+
+    def renderLine(self, surface) -> None:
         pygame.draw.line(
             surface,
             self.color,
@@ -67,6 +109,46 @@ class VisuLine(VisuObject):
             width=int(self.width/view.z)
         )
 
+    def draw(self, surface:pygame.Surface) -> None:
+        self.renderLine(surface)
+
+    def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float) -> None:
+        pygame.draw.line(
+            surface,
+            self.color,
+            offset + self.position*scale,
+            offset + self.endpoint*scale,
+            width=int(self.width*scale)
+        )
+
+
+class VisuCarrier(VisuBlock):
+    def __init__(self, position:pygame.Vector2, fill:float) -> None:
+        super().__init__(position=position)
+        self.fill = fill
+        self.color = "black"
+        self.item_color = "orange"
+        self.height = 10
+        self.width = 30
+        self.radius = 0
+
+    @property
+    def Items(self) -> pygame.Rect:
+        Items = self.Rect.inflate(-4, -4)
+        Items.inflate_ip(-(self.width-4)*(1-self.fill), 0)
+        Items.move_ip(-(self.width-4)*(1-self.fill)/2, 0)
+        return Items
+    
+    def renderItems(self, surface:pygame.Surface) -> None:
+        pygame.draw.rect(
+            surface,
+            self.item_color,
+            self.Items
+        )
+
+    def draw(self, surface:pygame.Surface) -> None:
+        self.renderBlock(surface)
+        self.renderItems(surface)
 
 class Crosshair(VisuObject):
     height = 10
@@ -88,32 +170,59 @@ class Crosshair(VisuObject):
 
 
 class MiniMap(VisuObject):
-    scale = 0.1
-
-    def __init__(self, position:pygame.Vector2):
-        super().__init__(position=position)
+    def __init__(self, size=None, position=None):
         self.active = True
+        self.scale = 0.5
+        self.color = "red"
+        self.border = pygame.Vector2(2, 2)
+        self.margin = pygame.Vector2(10, 10)
+        self.size = (pygame.Vector2(
+                size[0]*self.scale,
+                size[1]*self.scale
+            ) + self.margin*2
+        )
+        self.offset = self.size/2 - size[2]*self.scale
+        if position is None:
+            position = pygame.Vector2(
+            Window.size.x - self.size.x - self.border.x,
+            self.border.y
+        )
+        self.minimap = pygame.Surface(self.size)
+        super().__init__(position=position)
+
+    @property
+    def Rect(self) -> None:
+        Rect = pygame.Rect(
+            self.position - self.border,
+            self.size + self.border*2
+        )
+        return Rect
 
     def toggle(self) -> None:
         self.active = not self.active
 
-    def draw_minimap(self) -> pygame.Surface:
-        return minimap
+    def draw_simple_objects_of_type(self, type:VisuObject) -> None:
+        for obj in visu_objects:
+            if isinstance(obj, type):
+                obj.draw_simple(self.minimap, self.offset, self.scale)
+
+    def render_minimap(self) -> pygame.Surface:
+        clear(self.minimap)
+        self.draw_simple_objects_of_type(VisuLine)
+        self.draw_simple_objects_of_type(VisuBlock)
+        return self.minimap
 
     def draw(self, surface:pygame.Surface) -> None:
-        surface.blit(self.draw_minimap(), self.poisition)
-        pygame.draw.rect(
-            surface,
-            self.color,
-            self.Rect
-        )
+        if self.active:
+            pygame.draw.rect(surface, self.color, self.Rect)
+            surface.blit(self.render_minimap(), self.position)
 
 
 def find_line_bounds() -> pygame.Vecotr2:
     x_positions = []
     y_positions = []
     for item in visu_objects:
-        if not isinstance(item, (Crosshair, MiniMap)):
+        if isinstance(item, (VisuBlock, VisuLine)):
             x_positions.append(item.position.x)
             y_positions.append(item.position.y)
     line_bounds = dict(
@@ -128,10 +237,13 @@ def find_line_size(line_bounds=None) -> pygame.Vector2:
     line_width = line_bounds['lower_right'].x - line_bounds['upper_left'].x
     line_height = line_bounds['lower_right'].y - line_bounds['upper_left'].y
     line_center = line_bounds['upper_left'] + (line_width/2,line_height/2)
-    return line_width, line_height, line_center
+    return (line_width, line_height, line_center)
 
-def set_initial_view() -> View:
-    line_width, line_height, line_center = find_line_size()
+def set_initial_view(line_size=None) -> View:
+    if line_size is None:
+        line_width, line_height, line_center = find_line_size()
+    else:
+        line_width, line_height, line_center = line_size
     x = -line_center.x
     y = -line_center.y
     x_scalar = line_width / (Window.size.x-100)
@@ -150,6 +262,17 @@ def check_user_input(dt) -> bool:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_m:
+                minimap.toggle()
+        elif event.type == pygame.MOUSEWHEEL:
+            view.z += 5 * event.y * view.z * dt
+    
+    _mouse = pygame.mouse.get_pressed(num_buttons=3)
+    mouse_rel = pygame.mouse.get_rel()
+    if _mouse[0]:
+        view.x += mouse_rel[0] * view.z
+        view.y += mouse_rel[1] * view.z
     keys = pygame.key.get_pressed()
     if keys[pygame.K_q]:
         view.z -= 3*view.z*dt
@@ -191,9 +314,13 @@ def run() -> None:
 
 
 if __name__ == '__main__':
-    for n in range(3):
+    for n in range(5):
         VisuBlock(pygame.Vector2(100*(n+1),100))
+    VisuStation(pygame.Vector2(300, 300))
+    VisuCarrier(pygame.Vector2(150, 100), 0.1)
     VisuLine(pygame.Vector2(100,100),pygame.Vector2(200,100))
     Crosshair(Window.center)
-    view = set_initial_view()
+    line_size = find_line_size()
+    minimap = MiniMap(size=line_size)
+    view = set_initial_view(line_size=line_size)
     run()
