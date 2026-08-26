@@ -66,7 +66,7 @@ class VisuBlock(VisuObject):
             surface,
             self.color,
             offset + self.position*scale,
-            int(self.height/3 * scale)
+            int(self.height/2 * scale)
         )
 
 
@@ -122,6 +122,27 @@ class VisuLine(VisuObject):
         )
 
 
+class VisuConnector(VisuLine):
+    def __init__(self, position:pygame.Vector2, endpoint:pygame.Vector2, slots:int) -> None:
+        super().__init__(position=position,endpoint=endpoint)
+        self.slots = slots
+
+    def renderSlots(self, surface) -> None:
+        length = self.endpoint/view.z-self.position/view.z
+        snippet = length/(self.slots+1)
+        for n in range(self.slots):
+            pygame.draw.circle(
+                surface,
+                self.color,
+                Window.center + (view.offset + self.position + snippet*(n+1))/view.z,
+                int(self.width/view.z)
+            )
+
+    def draw(self, surface:pygame.Surface) -> None:
+        self.renderLine(surface)
+        self.renderSlots(surface)
+
+
 class VisuCarrier(VisuBlock):
     def __init__(self, position:pygame.Vector2, fill:float) -> None:
         super().__init__(position=position)
@@ -134,9 +155,9 @@ class VisuCarrier(VisuBlock):
 
     @property
     def Items(self) -> pygame.Rect:
-        Items = self.Rect.inflate(-4, -4)
-        Items.inflate_ip(-(self.width-4)*(1-self.fill), 0)
-        Items.move_ip(-(self.width-4)*(1-self.fill)/2, 0)
+        Items = self.Rect.inflate(-4/view.z, -4/view.z)
+        Items.inflate_ip(-(self.width-4/view.z)*(1-self.fill)/view.z, 0)
+        Items.move_ip(-(self.width-4/view.z)*(1-self.fill)/2/view.z, 0)
         return Items
     
     def renderItems(self, surface:pygame.Surface) -> None:
@@ -149,6 +170,14 @@ class VisuCarrier(VisuBlock):
     def draw(self, surface:pygame.Surface) -> None:
         self.renderBlock(surface)
         self.renderItems(surface)
+
+    def draw_simple(self, surface, offset, scale):
+        pygame.draw.circle(
+            surface,
+            self.item_color,
+            offset + self.position*scale,
+            int(self.width/3 * scale)
+        )
 
 class Crosshair(VisuObject):
     height = 10
@@ -317,8 +346,9 @@ if __name__ == '__main__':
     for n in range(5):
         VisuBlock(pygame.Vector2(100*(n+1),100))
     VisuStation(pygame.Vector2(300, 300))
-    VisuCarrier(pygame.Vector2(150, 100), 0.1)
+    VisuCarrier(pygame.Vector2(150, 100), 1.0)
     VisuLine(pygame.Vector2(100,100),pygame.Vector2(200,100))
+    VisuConnector(pygame.Vector2(200,100),pygame.Vector2(300,100),1)
     Crosshair(Window.center)
     line_size = find_line_size()
     minimap = MiniMap(size=line_size)
