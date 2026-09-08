@@ -198,11 +198,14 @@ class Crosshair(VisuObject):
 
 
 class MiniMap(VisuObject):
-    def __init__(self, size=None, position=None):
+    def __init__(self, temp_objects, size=None, position=None, scale=None):
         self.name = "MiniMap"
+        self.temp_objects = temp_objects
         self.active = True
-        self.scale = 0.5
         self.color = "red"
+        if scale is None:
+            scale = 0.5
+        self.scale = scale
         self.border = pygame.Vector2(2, 2)
         self.margin = pygame.Vector2(10, 10)
         self.size = (pygame.Vector2(
@@ -231,14 +234,15 @@ class MiniMap(VisuObject):
         self.active = not self.active
 
     def draw_simple_objects_of_type(self, type:VisuObject) -> None:
-        for obj in temp_visu_objects:
+        for obj in self.temp_objects:
             if isinstance(obj, type):
                 obj.draw_simple(self.minimap, self.offset, self.scale)
 
     def render_minimap(self) -> pygame.Surface:
         clear(self.minimap)
-        self.draw_simple_objects_of_type(VisuLine)
-        self.draw_simple_objects_of_type(VisuBlock)
+        self.draw_simple_objects_of_type(VisuConnector)
+        self.draw_simple_objects_of_type(VisuStation)
+        self.draw_simple_objects_of_type(VisuCarrier)
         return self.minimap
 
     def draw(self, viewport) -> None:
@@ -277,25 +281,11 @@ class VisuStation(VisuEquivalent):
         }
 
     @property
-    def Rect(self) -> pygame.Rect:
-        Rect = pygame.Rect(
-            Window.center.x + (view.x + self.position.x - self.width/2)/view.z,
-            Window.center.y + (view.y + self.position.y - self.height/2)/view.z,
-            self.width/view.z,
-            self.height/view.z,
-        )
-        return Rect
-
-    @property
     def station_color(self) -> str:
         station_color = self.color_mapping[self.mode]
         if not self.on:
             station_color = self.color
         return station_color
-
-    @property
-    def hovered(self) -> bool:
-        return self.Rect.collidepoint(pygame.mouse.get_pos())
 
     def update(self, obj:ConnectionData) -> None:
         super().update(obj=obj)
@@ -303,10 +293,16 @@ class VisuStation(VisuEquivalent):
         self.on = obj.on
 
     def renderBlock(self, viewport) -> None:
+        Rect = pygame.Rect(
+            viewport.window.center.x + (viewport.view.x + self.position.x - self.width/2)/viewport.view.z,
+            viewport.window.center.y + (viewport.view.y + self.position.y - self.height/2)/viewport.view.z,
+            self.width/viewport.view.z,
+            self.height/viewport.view.z,
+        )
         pygame.draw.rect(
             viewport.surface,
             self.station_color,
-            self.Rect,
+            Rect,
             border_radius = int(max(1,self.radius/viewport.view.z))
         )
 
@@ -327,7 +323,7 @@ class VisuStation(VisuEquivalent):
     def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float) -> None:
         pygame.draw.circle(
             surface,
-            self.color,
+            self.station_color,
             offset + self.position*scale,
             int(self.height/2 * scale)
         )
@@ -338,7 +334,7 @@ class VisuSwitch(VisuStation):
         super().__init__(obj=obj)
         self.pos_in = obj.pos_in_out[0]
         self.pos_out = obj.pos_in_out[1]
-        self.connector_color = VisuConnector.color
+        self.connector_color = "gray"
 
     def update(self, obj:ConnectionData) -> None:
         super().update(obj=obj)
@@ -350,17 +346,21 @@ class VisuSwitch(VisuStation):
             viewport.surface,
             self.connector_color,
             viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
-            self.width/5/viewport.view.z
+            self.width/4/viewport.view.z
         )
-        pygame.draw.lines(
+        pygame.draw.line(
             viewport.surface,
             self.connector_color,
-            (
-                viewport.window.center + (viewport.view.offset + self.pos_in)/viewport.view.z,
-                viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
-                viewport.window.center + (viewport.view.offset + self.pos_out)/viewport.view.z
-            ),
-            width=int(VisuConnector.width/viewport.view.z)
+            viewport.window.center + (viewport.view.offset + self.pos_in)/viewport.view.z,
+            viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
+            width=int(10/viewport.view.z)
+        )
+        pygame.draw.line(
+            viewport.surface,
+            self.connector_color,
+            viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
+            viewport.window.center + (viewport.view.offset + self.pos_out)/viewport.view.z,
+            width=int(10/viewport.view.z)
         )
 
     def draw(self, viewport) -> None:
@@ -373,11 +373,6 @@ class VisuConnector(VisuEquivalent):
         super().__init__(obj=obj)
         self.endpoint = obj.endpoint
         self.width = 10
-
-    @property
-    def hovered(self) -> bool:
-        #calculate via polytope
-        return False
 
     def renderLine(self, viewport) -> None:
         pygame.draw.line(
@@ -401,13 +396,13 @@ class VisuConnector(VisuEquivalent):
         )
 
 
-class VisuBuffer(VisuEquivalent):
+class VisuBuffer(VisuConnector):
     def __init__(self, obj:ConnectionData) -> None:
         super().__init__(obj=obj)
         self.capacity = obj.capacity
 
     def renderSlots(self, viewport) -> None:
-        length = self.endpoint/viewport.view.z-self.position/viewport.view.z
+        length = self.endpoint-self.position
         snippet = length/(self.capacity+1)
         for n in range(self.capacity):
             pygame.draw.circle(
@@ -431,39 +426,33 @@ class VisuCarrier(VisuEquivalent):
         self.height = 10
         self.width = 30
 
-    @property
-    def Rect(self) -> pygame.Rect:
-        Rect = pygame.Rect(
-            Window.center.x + (view.x + self.position.x - self.width/2)/view.z,
-            Window.center.y + (view.y + self.position.y - self.height/2)/view.z,
-            self.width/view.z,
-            self.height/view.z,
-        )
-        return Rect
-
-    @property
-    def hovered(self) -> bool:
-        return self.Rect.collidepoint(pygame.mouse.get_pos())
-
-    @property
-    def Items(self) -> pygame.Rect:
-        Items = self.Rect.inflate(-4/view.z, -4/view.z)
-        Items.inflate_ip(-(self.width-4/view.z)*(1-self.fill)/view.z, 0)
-        Items.move_ip(-(self.width-4/view.z)*(1-self.fill)/2/view.z, 0)
-        return Items
-    
     def renderBlock(self, viewport) -> None:
+        Rect = pygame.Rect(
+            viewport.window.center.x + (viewport.view.x + self.position.x - self.width/2)/viewport.view.z,
+            viewport.window.center.y + (viewport.view.y + self.position.y - self.height/2)/viewport.view.z,
+            self.width/viewport.view.z,
+            self.height/viewport.view.z,
+        )
         pygame.draw.rect(
             viewport.surface,
             self.color,
-            self.Rect,
+            Rect,
         )
 
     def renderItems(self, viewport) -> None:
+        Rect = pygame.Rect(
+            viewport.window.center.x + (viewport.view.x + self.position.x - self.width/2)/viewport.view.z,
+            viewport.window.center.y + (viewport.view.y + self.position.y - self.height/2)/viewport.view.z,
+            self.width/viewport.view.z,
+            self.height/viewport.view.z,
+        )
+        Items = Rect.inflate(-4/viewport.view.z, -4/viewport.view.z)
+        Items.inflate_ip(-(self.width-4/viewport.view.z)*(1-self.fill)/viewport.view.z, 0)
+        Items.move_ip(-(self.width-4/viewport.view.z)*(1-self.fill)/2/viewport.view.z, 0)
         pygame.draw.rect(
             viewport.surface,
             self.item_color,
-            self.Items
+            Items
         )
 
     def draw(self, viewport) -> None:
@@ -482,7 +471,7 @@ class VisuCarrier(VisuEquivalent):
 
 
 
-def find_line_bounds() -> pygame.Vector2:
+def find_line_bounds(temp_visu_objects) -> pygame.Vector2:
     x_positions = []
     y_positions = []
     for item in temp_visu_objects:
@@ -494,9 +483,9 @@ def find_line_bounds() -> pygame.Vector2:
     )
     return line_bounds
 
-def find_line_size(line_bounds=None) -> pygame.Vector2:
+def find_line_size(temp_visu_objects, line_bounds=None) -> pygame.Vector2:
     if line_bounds is None:
-        line_bounds = find_line_bounds()
+        line_bounds = find_line_bounds(temp_visu_objects)
     line_width = line_bounds['lower_right'].x - line_bounds['upper_left'].x
     line_height = line_bounds['lower_right'].y - line_bounds['upper_left'].y
     line_center = line_bounds['upper_left'] + (line_width/2,line_height/2)
@@ -505,7 +494,7 @@ def find_line_size(line_bounds=None) -> pygame.Vector2:
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
 
-def check_user_input(dt) -> bool:
+def check_user_input(dt, viewport, minimap) -> bool:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False
@@ -513,31 +502,31 @@ def check_user_input(dt) -> bool:
             if event.key == pygame.K_m:
                 minimap.toggle()
         elif event.type == pygame.MOUSEWHEEL:
-            view.z += 5 * event.y * view.z * dt
+            viewport.view.z += 5 * event.y * viewport.view.z * dt
     
     _mouse = pygame.mouse.get_pressed(num_buttons=3)
     mouse_rel = pygame.mouse.get_rel()
     if _mouse[0]:
-        view.x += mouse_rel[0] * view.z
-        view.y += mouse_rel[1] * view.z
+        viewport.view.x += mouse_rel[0] * viewport.view.z
+        viewport.view.y += mouse_rel[1] * viewport.view.z
     keys = pygame.key.get_pressed()
     if keys[pygame.K_q]:
-        view.z -= 3*view.z*dt
+        viewport.view.z -= 3*viewport.view.z*dt
     if keys[pygame.K_e]:
-        view.z += 3*view.z*dt
+        viewport.view.z += 3*viewport.view.z*dt
     if keys[pygame.K_w] or keys[pygame.K_UP]:
-        view.y += 300*view.z*dt
+        viewport.view.y += 300*viewport.view.z*dt
     if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-        view.y -= 300*view.z*dt
+        viewport.view.y -= 300*viewport.view.z*dt
     if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-        view.x += 300*view.z*dt
+        viewport.view.x += 300*viewport.view.z*dt
     if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-        view.x -= 300*view.z*dt
-    view.z = max(0.5,min(10,view.z))
+        viewport.view.x -= 300*viewport.view.z*dt
+    viewport.view.z = max(0.5,min(10,viewport.view.z))
     return True
 
-def draw_objects_of_type(type, viewport) -> None:
-    for obj in perm_visu_objects + temp_visu_objects:
+def draw_objects_of_type(type, viewport, manager) -> None:
+    for obj in manager.perm_visu_objects + manager.temp_visu_objects:
         if isinstance(obj, type):
             obj.draw(viewport)
 
@@ -573,41 +562,43 @@ class Viewport:
         return self.view is not None
 
 
-def draw_scene(viewport: Viewport) -> None:
+def draw_scene(viewport: Viewport, manager) -> None:
     clear(viewport.screen)
 
     for cls in [VisuConnector, VisuStation, VisuCarrier, Crosshair, MiniMap]:
-        draw_objects_of_type(cls, viewport)
-
+        draw_objects_of_type(cls, viewport, manager)
 
 
 class VisuManager:
     object_mapping = {
         "station": VisuStation,
+        "process": VisuStation,
         "source": VisuStation,
         "sink": VisuStation,
         "switch": VisuSwitch,
-        "sonnector": VisuConnector,
         "buffer": VisuBuffer,
         "carrier": VisuCarrier
     }
+    temp_objects = (VisuStation, VisuSwitch, VisuBuffer, VisuCarrier)
     def __init__(self, connection):
         self.perm_visu_objects = []
         self.temp_visu_objects = []
         self.connection = connection
 
-
     def receive_data(self):
         self.connection.recieve_all()
+
+    def add(self, obj) -> None:
+        self.perm_visu_objects.append(obj)
 
     def create(self, obj_spec) -> None:
 
         obj = self.object_mapping[obj_spec.type](obj_spec)
 
-        if isinstance(obj, VisuStation) or isinstance(obj, VisuSwitch):
-            self.perm_visu_objects.append(obj)
-        else:
+        if isinstance(obj, self.temp_objects):
             self.temp_visu_objects.append(obj)
+        else:
+            self.perm_visu_objects.append(obj)
     
     def remove(self, obj):
         self.temp_visu_objects.remove(obj)
@@ -645,21 +636,18 @@ def run_visualization(connection: Communication) -> None:
     manager = VisuManager(connection)
 
     while running:
-        print(temp_visu_objects)
-        if initialized:
-            running = check_user_input(dt)
+        if viewport.is_initialized:
+            running = check_user_input(dt, viewport, manager.perm_visu_objects[1])
 
         manager.receive_data()
         manager.heartbeat()
 
-        # classes initialized here need to be in "global namespace"
         if not viewport.is_initialized and connection.data is not None:
-            Crosshair(viewport.window.center)
-            line_size = find_line_size()
-            minimap = MiniMap(find_line_size)
-            viewport.set_initial_view(line_size=find_line_size)
+            manager.add(Crosshair(viewport.window.center))
+            manager.add(MiniMap(manager.temp_visu_objects, find_line_size(manager.temp_visu_objects), scale=0.2))
+            viewport.set_initial_view(line_size=find_line_size(manager.temp_visu_objects))
 
-        draw_scene(viewport)
+        draw_scene(viewport, manager)
         pygame.display.flip()
         dt = clock.tick(60)/1000
     pygame.quit()

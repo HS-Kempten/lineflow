@@ -121,11 +121,12 @@ class Buffer(Connector):
     def get_visualization_data(self):
         data = [
             ConnectionData(
-                type='connector',
+                type='buffer',
                 layer=1,
-                start=self._position_input,
-                end=self._position_output,
-                n_slots=self.capacity,
+                name=self.name,
+                position=self._position_input,
+                endpoint=self._position_output,
+                capacity=self.capacity,
             )
         ]
         for carrier in self.carriers.values():

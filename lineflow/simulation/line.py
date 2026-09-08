@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import start_visualization, setup_communication_pair, ConnectionData
+from lineflow.simulation.new_visualization import run_visualization, setup_communication_pair, ConnectionData
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class Line:
         self.connection.new_event("stop_event")
         self.connection.new_event("halt_event")
         self.visualization_process = Process(
-            target=start_visualization,
+            target=run_visualization,
             args=(visu_connection,)
         )
 
@@ -213,16 +213,16 @@ class Line:
                 if isinstance(obj, Connector):
                     data.extend(obj.get_visualization_data())
 
-            data.append(
-                ConnectionData(
-                    type='info',
-                    layer=10,
-                    time=self.env.now,
-                    n_parts=self.get_n_parts_produced()
-                )
-            )
-            if actions is not None:
-                data.append(ConnectionData(type='actions',layer=11, actions=actions))
+#            data.append(
+#                ConnectionData(
+#                    type='info',
+#                    layer=10,
+#                    time=self.env.now,
+#                    n_parts=self.get_n_parts_produced()
+#                )
+#            )
+#            if actions is not None:
+#                data.append(ConnectionData(type='actions',layer=11, actions=actions))
             self.connection.send(data)
 
     def apply(self, values):

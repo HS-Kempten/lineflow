@@ -29,6 +29,9 @@ class ConnectionData:
         for k in self.__dict__:
             yield k
 
+    def __eq__(self, other):
+        return self.name == other
+
     def __lt__(self, other):
         return self.layer < other.layer
 
