@@ -4,7 +4,6 @@ from queue import Empty
 from multiprocessing import Queue, Event
 
 
-
 logger = logging.getLogger(__name__)
 
 class ConnectionData:
@@ -83,7 +82,6 @@ class Window:
     size = pygame.Vector2(1280, 720)
     center = pygame.Vector2(size.x/2, size.y/2)
 
-
 class View:
     def __init__(self,x:float=0.0,y:float=0.0,z:float=1.0):
         self.x = x
@@ -93,18 +91,13 @@ class View:
     def offset(self) -> pygame.Vector2:
         return pygame.Vector2(self.x, self.y)
 
-#class attribute of VisuObject? or something else
-perm_visu_objects = []
-temp_visu_objects = []
 
-
-#Definition of Visualization specific Objects
+# Definition of Visualization specific Objects
 class VisuObject:
     def __init__(self, position:pygame.Vector2) -> None:
         self.position = position
-        perm_visu_objects.append(self)
 
-    def draw(self, surface) -> None:
+    def draw(self, viewport) -> None:
         raise NotImplementedError()
 
 
@@ -130,16 +123,16 @@ class VisuBlock(VisuObject):
     def hovered(self) -> bool:
         return self.Rect.collidepoint(pygame.mouse.get_pos())
 
-    def renderBlock(self, surface) -> None:
+    def renderBlock(self, viewport) -> None:
         pygame.draw.rect(
-            surface,
+            viewport.surface,
             self.color,
             self.Rect,
-            border_radius = int(self.radius/view.z)
+            border_radius = int(self.radius/viewport.view.z)
         )
     
-    def draw(self, surface:pygame.Surface) -> None:
-        self.renderBlock(surface)
+    def draw(self, viewport) -> None:
+        self.renderBlock(viewport)
 
     def draw_simple(self, surface, offset, scale):
         pygame.draw.circle(
@@ -163,17 +156,17 @@ class VisuLine(VisuObject):
         #calculate via polytope
         return False
 
-    def renderLine(self, surface) -> None:
+    def renderLine(self, viewport) -> None:
         pygame.draw.line(
-            surface,
+            viewport.surface,
             self.color,
-            Window.center + (view.offset + self.position)/view.z,
-            Window.center + (view.offset + self.endpoint)/view.z,
-            width=int(self.width/view.z)
+            viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
+            viewport.window.center + (viewport.view.offset + self.endpoint)/viewport.view.z,
+            width=int(self.width/viewport.view.z)
         )
 
-    def draw(self, surface:pygame.Surface) -> None:
-        self.renderLine(surface)
+    def draw(self, viewport) -> None:
+        self.renderLine(viewport)
 
     def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float) -> None:
         pygame.draw.line(
@@ -190,14 +183,14 @@ class Crosshair(VisuObject):
     width = 10
     color = "red"
 
-    def draw(self, surface:pygame.Surface) -> None:
+    def draw(self, viewport) -> None:
         pygame.draw.line(
-            surface,
+            viewport.screen,
             self.color,
             self.position + (self.height,0),
             self.position - (self.height,0))
         pygame.draw.line(
-            surface,
+            viewport.screen,
             self.color,
             self.position + (0,self.width),
             self.position - (0,self.width)
@@ -248,17 +241,16 @@ class MiniMap(VisuObject):
         self.draw_simple_objects_of_type(VisuBlock)
         return self.minimap
 
-    def draw(self, surface:pygame.Surface) -> None:
+    def draw(self, viewport) -> None:
         if self.active:
-            pygame.draw.rect(surface, self.color, self.Rect)
-            surface.blit(self.render_minimap(), self.position)
+            pygame.draw.rect(viewport.surface, self.color, self.Rect)
+            viewport.surface.blit(self.render_minimap(), self.position)
 
 
 #Start of Simulation Equivalent Classes
 
 class VisuEquivalent(VisuObject):
     def __init__(self, obj:ConnectionData):
-        temp_visu_objects.append(self)
         self.name = obj.name
         self.position = obj.position
         self.color = "gray"
@@ -310,27 +302,27 @@ class VisuStation(VisuEquivalent):
         self.mode = obj.mode
         self.on = obj.on
 
-    def renderBlock(self, surface) -> None:
+    def renderBlock(self, viewport) -> None:
         pygame.draw.rect(
-            surface,
+            viewport.surface,
             self.station_color,
             self.Rect,
-            border_radius = int(max(1,self.radius/view.z))
+            border_radius = int(max(1,self.radius/viewport.view.z))
         )
 
-    def renderName(self, surface) -> None:
-        font = pygame.font.SysFont(None, int(20/view.z))
+    def renderName(self, viewport) -> None:
+        font = pygame.font.SysFont(None, int(20/viewport.view.z))
         name_text = font.render(self.name, True, 'black')
-        surface.blit(
+        viewport.surface.blit(
             name_text,
             name_text.get_rect(
-                center=Window.center + (view.offset + self.position + (0, -0.7*self.height))/view.z
+                center=viewport.window.center + (viewport.view.offset + self.position + (0, -0.7*self.height))/viewport.view.z
             )
         )
 
-    def draw(self, surface:pygame.Surface) -> None:
-        self.renderBlock(surface)
-        self.renderName(surface)
+    def draw(self, viewport) -> None:
+        self.renderBlock(viewport)
+        self.renderName(viewport)
 
     def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float) -> None:
         pygame.draw.circle(
@@ -353,27 +345,27 @@ class VisuSwitch(VisuStation):
         self.pos_in = obj.pos_in_out[0]
         self.pos_out = obj.pos_in_out[1]
 
-    def render_connections(self, surface:pygame.Surface) -> None:
+    def render_connections(self, viewport) -> None:
         pygame.draw.circle(
-            surface,
-            connector_color,
-            Window.center + (view.offset + self.position)/view.z,
-            self.width/5/view.z
+            viewport.surface,
+            self.connector_color,
+            viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
+            self.width/5/viewport.view.z
         )
         pygame.draw.lines(
-            surface,
-            connector_color,
+            viewport.surface,
+            self.connector_color,
             (
-                Window.center + (view.offset + self.pos_in)/view.z,
-                Window.center + (view.offset + self.position)/view.z,
-                Window.center + (view.offset + self.pos_out)/view.z
+                viewport.window.center + (viewport.view.offset + self.pos_in)/viewport.view.z,
+                viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
+                viewport.window.center + (viewport.view.offset + self.pos_out)/viewport.view.z
             ),
-            width=int(VisuConnector.width/view.z)
+            width=int(VisuConnector.width/viewport.view.z)
         )
 
-    def draw(self, surface:pygame.Surface) -> None:
-        super().draw(surface=surface)
-        self.render_connections(surface)
+    def draw(self, viewport) -> None:
+        super().draw(viewport=viewport)
+        self.render_connections(viewport)
 
 
 class VisuConnector(VisuEquivalent):
@@ -387,17 +379,17 @@ class VisuConnector(VisuEquivalent):
         #calculate via polytope
         return False
 
-    def renderLine(self, surface:pygame.Surface) -> None:
+    def renderLine(self, viewport) -> None:
         pygame.draw.line(
-            surface,
+            viewport.surface,
             self.color,
-            Window.center + (view.offset + self.position)/view.z,
-            Window.center + (view.offset + self.endpoint)/view.z,
-            width=int(self.width/view.z)
+            viewport.window.center + (viewport.view.offset + self.position)/viewport.view.z,
+            viewport.window.center + (viewport.view.offset + self.endpoint)/viewport.view.z,
+            width=int(self.width/viewport.view.z)
         )
 
-    def draw(self, surface:pygame.Surface) -> None:
-        self.renderLine(surface)
+    def draw(self, viewport) -> None:
+        self.renderLine(viewport)
 
     def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float) -> None:
         pygame.draw.line(
@@ -414,20 +406,20 @@ class VisuBuffer(VisuEquivalent):
         super().__init__(obj=obj)
         self.capacity = obj.capacity
 
-    def renderSlots(self, surface) -> None:
-        length = self.endpoint/view.z-self.position/view.z
+    def renderSlots(self, viewport) -> None:
+        length = self.endpoint/viewport.view.z-self.position/viewport.view.z
         snippet = length/(self.capacity+1)
         for n in range(self.capacity):
             pygame.draw.circle(
-                surface,
+                viewport.surface,
                 self.color,
-                Window.center + (view.offset + self.position + snippet*(n+1))/view.z,
-                int(self.width/view.z)
+                viewport.window.center + (viewport.view.offset + self.position + snippet*(n+1))/viewport.view.z,
+                int(self.width/viewport.view.z)
             )
 
-    def draw(self, surface:pygame.Surface) -> None:
-        super().draw(surface=surface)
-        self.renderSlots(surface)
+    def draw(self, viewport) -> None:
+        super().draw(viewport=viewport)
+        self.renderSlots(viewport)
 
 
 class VisuCarrier(VisuEquivalent):
@@ -460,23 +452,23 @@ class VisuCarrier(VisuEquivalent):
         Items.move_ip(-(self.width-4/view.z)*(1-self.fill)/2/view.z, 0)
         return Items
     
-    def renderBlock(self, surface) -> None:
+    def renderBlock(self, viewport) -> None:
         pygame.draw.rect(
-            surface,
+            viewport.surface,
             self.color,
             self.Rect,
         )
 
-    def renderItems(self, surface:pygame.Surface) -> None:
+    def renderItems(self, viewport) -> None:
         pygame.draw.rect(
-            surface,
+            viewport.surface,
             self.item_color,
             self.Items
         )
 
-    def draw(self, surface:pygame.Surface) -> None:
-        self.renderBlock(surface)
-        self.renderItems(surface)
+    def draw(self, viewport) -> None:
+        self.renderBlock(viewport)
+        self.renderItems(viewport)
 
     def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float):
         pygame.draw.circle(
@@ -489,38 +481,8 @@ class VisuCarrier(VisuEquivalent):
 #End of Simulation Equivalent Classes
 
 
-object_mapping = {
-    "station":VisuStation,
-    "source":VisuStation,
-    "sink":VisuStation,
-    "switch":VisuSwitch,
-    "sonnector":VisuConnector,
-    "buffer":VisuBuffer,
-    "carrier":VisuCarrier
-}
 
-def create_visu_object(obj) -> None:
-    object_mapping[obj.type](obj)
-
-def delete_visu_object(obj) -> None:
-    temp_visu_objects.remove(obj)
-
-def visu_heartbeat(data) -> None:
-    remove_from_visu = []
-    for visu_obj in temp_visu_objects:
-        if visu_obj not in data:
-            remove_from_visu.append(visu_obj)
-        else:
-            i = connection.data.index(visu_obj.name)
-            visu_obj.update(data[i])
-    for visu_obj in remove_from_visu:
-        delete_visu_object(visu_obj)
-    remove_from_visu = []
-    for sim_obj in data:
-        if sim_obj not in temp_visu_objects:
-            create_visu_object(sim_obj)
-
-def find_line_bounds() -> pygame.Vecotr2:
+def find_line_bounds() -> pygame.Vector2:
     x_positions = []
     y_positions = []
     for item in temp_visu_objects:
@@ -539,22 +501,6 @@ def find_line_size(line_bounds=None) -> pygame.Vector2:
     line_height = line_bounds['lower_right'].y - line_bounds['upper_left'].y
     line_center = line_bounds['upper_left'] + (line_width/2,line_height/2)
     return (line_width, line_height, line_center)
-
-def set_initial_view(line_size=None) -> View:
-    if line_size is None:
-        line_width, line_height, line_center = find_line_size()
-    else:
-        line_width, line_height, line_center = line_size
-    x = -line_center.x
-    y = -line_center.y
-    x_scalar = line_width / (Window.size.x-100)
-    y_scalar = line_height / (Window.size.y-100)
-    scalar = max(x_scalar,y_scalar)
-    if scalar < 1:
-        z = 1
-    else:
-        z = round(scalar,1)
-    return View(x,y,z)
 
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
@@ -590,43 +536,130 @@ def check_user_input(dt) -> bool:
     view.z = max(0.5,min(10,view.z))
     return True
 
-def draw_objects_of_type(type, surface:pygame.Surface) -> None:
+def draw_objects_of_type(type, viewport) -> None:
     for obj in perm_visu_objects + temp_visu_objects:
         if isinstance(obj, type):
-            obj.draw(surface)
+            obj.draw(viewport)
 
-def draw_scene(surface:pygame.Surface) -> None:
-    clear(surface)
-    draw_objects_of_type(VisuConnector, surface)
-    draw_objects_of_type(VisuStation, surface)
-    draw_objects_of_type(VisuCarrier, surface)
-    draw_objects_of_type(Crosshair, surface)
-    draw_objects_of_type(MiniMap, surface)
 
-def run_visualization(connection:Communication) -> None:
+class Viewport:
+    def __init__(self, screen):
+        self.window = Window()
+        self.view = None
+        self.screen = screen
+
+    @property
+    def surface(self):
+        return self.screen
+
+    def set_initial_view(self, line_size=None):
+        if line_size is None:
+            line_width, line_height, line_center = find_line_size()
+        else:
+            line_width, line_height, line_center = line_size
+        x = -line_center.x
+        y = -line_center.y
+        x_scalar = line_width / (self.window.size.x-100)
+        y_scalar = line_height / (self.window.size.y-100)
+        scalar = max(x_scalar,y_scalar)
+        if scalar < 1:
+            z = 1
+        else:
+            z = round(scalar,1)
+        self.view = View(x,y,z)
+
+    @property
+    def is_initialized(self):
+        return self.view is not None
+
+
+def draw_scene(viewport: Viewport) -> None:
+    clear(viewport.screen)
+
+    for cls in [VisuConnector, VisuStation, VisuCarrier, Crosshair, MiniMap]:
+        draw_objects_of_type(cls, viewport)
+
+
+
+class VisuManager:
+    object_mapping = {
+        "station": VisuStation,
+        "source": VisuStation,
+        "sink": VisuStation,
+        "switch": VisuSwitch,
+        "sonnector": VisuConnector,
+        "buffer": VisuBuffer,
+        "carrier": VisuCarrier
+    }
+    def __init__(self, connection):
+        self.perm_visu_objects = []
+        self.temp_visu_objects = []
+        self.connection = connection
+
+
+    def receive_data(self):
+        self.connection.recieve_all()
+
+    def create(self, obj_spec) -> None:
+
+        obj = self.object_mapping[obj_spec.type](obj_spec)
+
+        if isinstance(obj, VisuStation) or isinstance(obj, VisuSwitch):
+            self.perm_visu_objects.append(obj)
+        else:
+            self.temp_visu_objects.append(obj)
+    
+    def remove(self, obj):
+        self.temp_visu_objects.remove(obj)
+
+    @property
+    def data(self):
+        return self.connection.data
+
+    def heartbeat(self) -> None:
+        remove_from_visu = []
+        for visu_obj in self.temp_visu_objects:
+            if visu_obj not in self.data:
+                remove_from_visu.append(visu_obj)
+            else:
+                i = self.data.index(visu_obj.name)
+                visu_obj.update(self.data[i])
+        for visu_obj in remove_from_visu:
+            self.remove(visu_obj)
+        remove_from_visu = []
+        for sim_obj in self.data:
+            if sim_obj not in self.temp_visu_objects:
+                self.create(sim_obj)
+    
+
+def run_visualization(connection: Communication) -> None:
     pygame.init()
     screen = pygame.display.set_mode(Window.size)
     clock = pygame.time.Clock()
     dt = 0
     initialized = False
     running = True
+
+    viewport = Viewport(screen)
+
+    manager = VisuManager(connection)
+
     while running:
         print(temp_visu_objects)
         if initialized:
             running = check_user_input(dt)
-        connection.recieve_all()
-        visu_heartbeat(connection.data)
 
-#classes initialized here need to be in "global namespace"
-        if not initialized and connection.data is not None:
-            Crosshair(Window.center)
+        manager.receive_data()
+        manager.heartbeat()
+
+        # classes initialized here need to be in "global namespace"
+        if not viewport.is_initialized and connection.data is not None:
+            Crosshair(viewport.window.center)
             line_size = find_line_size()
             minimap = MiniMap(find_line_size)
-            view = set_initial_view(line_size=find_line_size)
-            initialized = True
+            viewport.set_initial_view(line_size=find_line_size)
 
-
-        draw_scene(screen)
+        draw_scene(viewport)
         pygame.display.flip()
         dt = clock.tick(60)/1000
     pygame.quit()
