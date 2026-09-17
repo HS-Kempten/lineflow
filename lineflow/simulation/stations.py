@@ -174,7 +174,7 @@ class Station(StationaryObject):
     def get_visualization_data(self) -> ConnectionData:
 
         data = ConnectionData(
-            type=str(self.__class__.__mro__[-3].__name__).lower(),
+            type=str(self.__class__.__mro__[-4].__name__).lower(),
             layer=2,
             name=self.name,
             position=self.position,
