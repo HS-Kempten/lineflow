@@ -196,6 +196,81 @@ class MiniMap(VisuObject):
             viewport.surface.blit(self.render_minimap(viewport), self.position)
 
 
+class Tooltip(VisuObject):
+    def __init__(self, temp_objects):
+        self.temp_objects = temp_objects
+        self.type = None
+
+    @property
+    def mouse_pos(self) -> pygame.Vector2:
+        return pygame.Vector2(pygame.mouse.get_pos())
+
+    def render_number(self, surface, number) -> None:
+        font = pygame.font.SysFont(None, int(20))
+        processing_time_text = font.render(str(number), True, 'black')
+        processing_time_rect = processing_time_text.get_rect(
+            left=self.mouse_pos.x-30,
+            top=self.mouse_pos.y-20,
+        )
+        background_rect = processing_time_rect.inflate(4, 4)
+        pygame.draw.rect(
+            surface,
+            "white",
+            background_rect,
+            border_radius = 8,
+        )
+        pygame.draw.rect(
+            surface,
+            "black",
+            background_rect,
+            width = 1,
+            border_radius = 8,
+            )
+        surface.blit(processing_time_text, processing_time_rect)
+
+    def render_processing_graph(self, surface, processing_time) -> None:
+        height = max(processing_time)+10
+        processing_rect = pygame.Rect(
+            self.mouse_pos.x+5,
+            self.mouse_pos.y - height,
+            100,
+            height,
+        )
+        background_rect = processing_rect.inflate(8, 8)
+        pygame.draw.rect(
+            surface,
+            "white",
+            background_rect,
+            border_radius = 8,
+        )
+        pygame.draw.rect(
+            surface,
+            "black",
+            background_rect,
+            width = 1,
+            border_radius = 8,
+            )
+        for i, entry in enumerate(processing_time):
+            pygame.draw.circle(
+                surface,
+                "blue",
+                self.mouse_pos + (i+5, -entry),
+                1
+            )
+
+    def draw(self, viewport):
+        for obj in self.temp_objects:
+            if not obj.hovered:
+                pass
+            elif isinstance(obj, VisuStation):
+                if len(obj.processing_time) > 0:
+                    self.render_number(viewport.surface, obj.processing_time[-1])
+                    self.render_processing_graph(viewport.surface, obj.processing_time)
+            elif isinstance(obj, VisuCarrier):
+                self.render_number(viewport.surface, obj.fill)
+                
+            
+
 #Start of Simulation Equivalent Classes
 
 class VisuEquivalent(VisuObject):
@@ -210,6 +285,10 @@ class VisuEquivalent(VisuObject):
     def __eq__(self, other:str) -> bool:
         return self.name == other
 
+    @property
+    def hovered(self) -> bool:
+        return False
+
     def update(self, obj:ConnectionData) -> None:
         self.position = obj.position
 
@@ -217,6 +296,9 @@ class VisuEquivalent(VisuObject):
         self.window_center = viewport.window.center
         self.view_offset = viewport.view.offset
         self.view_z = viewport.view.z
+
+    def draw(self, surface) -> None:
+        raise NotImplementedError()
 
 
 class VisuStation(VisuEquivalent):
@@ -290,69 +372,11 @@ class VisuStation(VisuEquivalent):
             border_radius = int(max(1, self.radius/self.view_z))
         )
 
-    def renderProcessing_time(self, surface) -> None:
-        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
-        font = pygame.font.SysFont(None, int(20))
-        processing_time = str(self.processing_time[-1])
-        processing_time_text = font.render(processing_time, True, 'black')
-        processing_time_rect = processing_time_text.get_rect(
-            left=mouse_pos.x-30,
-            top=mouse_pos.y-20,
-        )
-        background_rect = processing_time_rect.inflate(4, 4)
-        pygame.draw.rect(
-            surface,
-            "white",
-            background_rect,
-            border_radius = 8,
-        )
-        pygame.draw.rect(
-            surface,
-            "black",
-            background_rect,
-            width = 1,
-            border_radius = 8,
-            )
-        surface.blit(processing_time_text, processing_time_rect)
-
-    def renderProcessing_graph(self, surface) -> None:
-        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
-        height = max(self.processing_time)+10
-        processing_rect = pygame.Rect(
-            mouse_pos.x+5,
-            mouse_pos.y - height,
-            100,
-            height,
-        )
-        background_rect = processing_rect.inflate(8, 8)
-        pygame.draw.rect(
-            surface,
-            "white",
-            background_rect,
-            border_radius = 8,
-        )
-        pygame.draw.rect(
-            surface,
-            "black",
-            background_rect,
-            width = 1,
-            border_radius = 8,
-            )
-        for i, entry in enumerate(self.processing_time):
-            pygame.draw.circle(
-                surface,
-                "blue",
-                mouse_pos + (i+5, -entry),
-                1
-            )
-
     def draw(self, surface) -> None:
         self.renderBlock(surface)
         self.renderName(surface)
         if self.hovered:
             self.render_outline(surface)
-            self.renderProcessing_time(surface)
-            self.renderProcessing_graph(surface)
 
     def draw_simple(self, surface:pygame.Surface, offset:pygame.Vector2, scale:float) -> None:
         pygame.draw.circle(
@@ -568,12 +592,12 @@ def check_user_input(dt, viewport, minimap, connection) -> bool:
     return True
 
 def draw_objects_of_type(type, viewport, manager) -> None:
-    for obj in manager.perm_visu_objects:
-        if isinstance(obj, type):
-            obj.draw(viewport)
     for obj in manager.temp_visu_objects:
         if isinstance(obj, type):
             obj.draw(viewport.surface)
+    for obj in manager.perm_visu_objects:
+        if isinstance(obj, type):
+            obj.draw(viewport)
 
 
 class Viewport:
@@ -610,7 +634,7 @@ class Viewport:
 def draw_scene(viewport: Viewport, manager) -> None:
     clear(viewport.screen)
 
-    for cls in [VisuConnector, VisuStation, VisuCarrier, Crosshair, MiniMap]:
+    for cls in [VisuConnector, VisuStation, VisuCarrier, Crosshair, MiniMap, Tooltip]:
         draw_objects_of_type(cls, viewport, manager)
 
 
@@ -697,6 +721,7 @@ def run_visualization(connection: Communication) -> None:
             manager.heartbeat()
     
             if not viewport.is_initialized and connection.data is not None:
+                manager.add(Tooltip(manager.temp_visu_objects))
                 manager.add(Crosshair(viewport.window.center))
                 manager.add(MiniMap(manager.temp_visu_objects, find_line_size(manager.temp_visu_objects), scale=0.2))
                 viewport.set_initial_view(line_size=find_line_size(manager.temp_visu_objects))
