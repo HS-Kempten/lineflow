@@ -240,17 +240,37 @@ class MiniMap(VisuObject):
             if isinstance(obj, type):
                 obj.draw_simple(self.minimap, self.offset, self.scale)
 
-    def render_minimap(self) -> pygame.Surface:
+    def draw_viewport_outline(self, viewport) -> None:
+        view_rect = pygame.Rect(
+            self.offset-(viewport.window.size)*self.scale*viewport.view.z/2-viewport.view.offset * self.scale,
+            viewport.window.size*self.scale*viewport.view.z,
+        )
+        pygame.draw.rect(
+            self.minimap,
+            self.color,
+            view_rect,
+            width=1,
+        )
+        pygame.draw.circle(
+            self.minimap,
+            self.color,
+            self.offset-viewport.view.offset*self.scale,
+            3,
+            width=1,
+        )
+
+    def render_minimap(self, viewport) -> pygame.Surface:
         clear(self.minimap)
         self.draw_simple_objects_of_type(VisuConnector)
         self.draw_simple_objects_of_type(VisuStation)
         self.draw_simple_objects_of_type(VisuCarrier)
+        self.draw_viewport_outline(viewport)
         return self.minimap
 
     def draw(self, viewport) -> None:
         if self.active:
             pygame.draw.rect(viewport.surface, self.color, self.Rect)
-            viewport.surface.blit(self.render_minimap(), self.position)
+            viewport.surface.blit(self.render_minimap(viewport), self.position)
 
 
 #Start of Simulation Equivalent Classes
@@ -296,8 +316,6 @@ class VisuStation(VisuEquivalent):
         station_color = self.color_mapping[self.mode]
         if not self.on:
             station_color = self.color
-        if self.hovered:
-            station_color = "blue"
         return station_color
 
     @property
@@ -338,6 +356,15 @@ class VisuStation(VisuEquivalent):
             name_text.get_rect(
                 center=self.window_center + (self.view_offset + self.position + (0, -0.7*self.height))/self.view_z
             )
+        )
+
+    def render_outline(self, surface) -> None:
+        pygame.draw.rect(
+            surface,
+            "blue",
+            self.Rect,
+            width = int(max(1, self.width/10/self.view_z)),
+            border_radius = int(max(1, self.radius/self.view_z))
         )
 
     def renderProcessing_time(self, surface) -> None:
@@ -400,6 +427,7 @@ class VisuStation(VisuEquivalent):
         self.renderBlock(surface)
         self.renderName(surface)
         if self.hovered:
+            self.render_outline(surface)
             self.renderProcessing_time(surface)
             self.renderProcessing_graph(surface)
 
