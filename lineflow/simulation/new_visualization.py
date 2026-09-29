@@ -273,7 +273,7 @@ class Tooltip(VisuObject):
             elif isinstance(obj, VisuStation):
                 if len(obj.processing_time) > 0:
                     self.render_number(viewport.surface, obj.processing_time[-1])
-                    self.render_processing_graph(viewport.surface, obj.processing_time, pos_x=obj.position.x, pos_y=obj.position.y)
+                    self.render_processing_graph(viewport.surface, obj.processing_time)
             elif isinstance(obj, VisuCarrier):
                 self.render_number(viewport.surface, obj.fill)
                 
