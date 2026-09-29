@@ -228,13 +228,21 @@ class Tooltip(VisuObject):
             )
         surface.blit(processing_time_text, processing_time_rect)
 
-    def render_processing_graph(self, surface, processing_time) -> None:
-        height = max(processing_time)+10
+    def render_processing_graph(self, surface, processing_time, pos_x=None, pos_y=None) -> None:
+
+        if pos_x is None:
+            pos_x = self.mouse_pos.x
+        if pos_y is None:
+            pos_y = self.mouse_pos.y
+        max_time = max(processing_time)*1.05
+        min_time = min(processing_time)*0.95
+        x_rel = 10
+        y_rel = 10
         processing_rect = pygame.Rect(
-            self.mouse_pos.x+5,
-            self.mouse_pos.y - height,
-            100,
-            height,
+            pos_x + x_rel,
+            pos_y - y_rel,
+            100, # width
+            50, # height
         )
         background_rect = processing_rect.inflate(8, 8)
         pygame.draw.rect(
@@ -254,7 +262,7 @@ class Tooltip(VisuObject):
             pygame.draw.circle(
                 surface,
                 "blue",
-                self.mouse_pos + (i+5, -entry),
+                pygame.Vector2(pos_x, pos_y) + (i+x_rel, processing_rect.height*(1-(entry-min_time)/(max_time-min_time))-y_rel),
                 1
             )
 
@@ -265,7 +273,7 @@ class Tooltip(VisuObject):
             elif isinstance(obj, VisuStation):
                 if len(obj.processing_time) > 0:
                     self.render_number(viewport.surface, obj.processing_time[-1])
-                    self.render_processing_graph(viewport.surface, obj.processing_time)
+                    self.render_processing_graph(viewport.surface, obj.processing_time, pos_x=obj.position.x, pos_y=obj.position.y)
             elif isinstance(obj, VisuCarrier):
                 self.render_number(viewport.surface, obj.fill)
                 
