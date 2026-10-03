@@ -69,12 +69,14 @@ class Communication:
             logger.warning(f"No data to read!")
 
     def recieve_all(self):
+        flag = False
         while True:
             try:
                 self.data = self.queue_in.get_nowait()
-                self.new_data = True
+                flag = True
             except Empty:
                 break
+        self.new_data = flag
 
     def send(self, data):
         self.queue_out.put(data)
@@ -558,7 +560,7 @@ def find_line_size(temp_visu_objects, line_bounds=None) -> pygame.Vector2:
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
 
-def check_user_input(dt, viewport, minimap, connection) -> bool:
+def check_user_input(dt, viewport, minimap, connection) -> None:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             connection.halt_event.set()
@@ -589,7 +591,6 @@ def check_user_input(dt, viewport, minimap, connection) -> bool:
     if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
         connection.halt_event.set()
     viewport.view.z = max(0.5,min(10,viewport.view.z))
-    return True
 
 def draw_objects_of_type(type, viewport, manager) -> None:
     for obj in manager.temp_visu_objects:
@@ -644,6 +645,8 @@ class VisuManager:
         "process": VisuStation,
         "source": VisuStation,
         "sink": VisuStation,
+        "assembly": VisuStation,
+        "magazine": VisuStation,
         "switch": VisuSwitch,
         "buffer": VisuBuffer,
         "carrier": VisuCarrier
@@ -712,7 +715,7 @@ def run_visualization(connection: Communication) -> None:
     try:
         while running:
             if viewport.is_initialized:
-                check_user_input(dt, viewport, manager.perm_visu_objects[1], connection)
+                check_user_input(dt, viewport, manager.perm_visu_objects[0], connection)
             if connection.stop_event.is_set():
                 running = False
                 break
@@ -721,9 +724,9 @@ def run_visualization(connection: Communication) -> None:
             manager.heartbeat()
     
             if not viewport.is_initialized and connection.data is not None:
+                manager.add(MiniMap(manager.temp_visu_objects, find_line_size(manager.temp_visu_objects), scale=0.2))
                 manager.add(Tooltip(manager.temp_visu_objects))
                 manager.add(Crosshair(viewport.window.center))
-                manager.add(MiniMap(manager.temp_visu_objects, find_line_size(manager.temp_visu_objects), scale=0.2))
                 viewport.set_initial_view(line_size=find_line_size(manager.temp_visu_objects))
             if viewport.is_initialized:
                 manager.update_offsets(viewport)
