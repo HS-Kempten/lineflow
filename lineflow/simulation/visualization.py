@@ -10,9 +10,8 @@ class ConnectionData:
     """Object for transfering data to Visualization
     ToDo: Remove redundant Methods"""
 
-    def __init__(self, type:str, layer:int, **kwargs):
+    def __init__(self, type:str, **kwargs):
         self.type = type
-        self.layer = layer
         for k, v in kwargs.items():
             self.__setattr__(k, v)
 
@@ -32,9 +31,6 @@ class ConnectionData:
 
     def __eq__(self, other):
         return self.name == other
-
-    def __lt__(self, other):
-        return self.layer < other.layer
 
 
 def setup_communication_pair():
@@ -207,6 +203,9 @@ class Tooltip(VisuObject):
     @property
     def mouse_pos(self) -> pygame.Vector2:
         return pygame.Vector2(pygame.mouse.get_pos())
+
+    def toggle(self) -> None:
+        self.active = not self.active
 
     def render_number(self, surface, number, pos_x=None, pos_y=None, border_color="black", text_color="black") -> None:
         if pos_x is None:
@@ -606,13 +605,15 @@ def find_line_size(temp_visu_objects, line_bounds=None) -> pygame.Vector2:
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
 
-def check_user_input(dt, viewport, minimap, connection) -> None:
+def check_user_input(dt, viewport, minimap, connection, tooltip) -> None:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             connection.halt_event.set()
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_m:
                 minimap.toggle()
+            if event.key == pygame.K_t:
+                tooltip.toggle()
         elif event.type == pygame.MOUSEWHEEL:
             viewport.view.z += 5 * event.y * viewport.view.z * dt
     
@@ -761,7 +762,7 @@ def run_visualization(connection: Communication) -> None:
     try:
         while running:
             if viewport.is_initialized:
-                check_user_input(dt, viewport, manager.perm_visu_objects[0], connection)
+                check_user_input(dt, viewport, manager.perm_visu_objects[0], connection, manager.perm_visu_objects[1])
             if connection.stop_event.is_set():
                 running = False
                 break
