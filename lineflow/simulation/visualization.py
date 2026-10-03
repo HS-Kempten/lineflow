@@ -462,6 +462,30 @@ class VisuSwitch(VisuStation):
         self.render_connections(surface)
 
 
+class VisuMagazine(VisuStation):
+    def __init__(self, obj:ConnectionData):
+        super().__init__(obj=obj)
+        self.magazine = obj.magazine
+
+    def update(self, obj:ConnectionData) -> None:
+        super().update(obj=obj)
+        self.magazine = obj.magazine
+
+    def render_magazine(self, surface) -> None:
+        font = pygame.font.SysFont(None,int(14/self.view_z))
+        info_text = font.render("C=" + str(self.magazine),False, "black")
+        surface.blit(
+            info_text,
+            info_text.get_rect(
+            center=self.Rect.center,
+            )
+        )
+
+    def draw(self, surface) -> None:
+        super().draw(surface=surface)
+        self.render_magazine(surface)
+
+
 class VisuConnector(VisuEquivalent):
     def __init__(self, obj:ConnectionData) -> None:
         super().__init__(obj=obj)
@@ -693,7 +717,7 @@ class VisuManager:
         "source": VisuStation,
         "sink": VisuStation,
         "assembly": VisuStation,
-        "magazine": VisuStation,
+        "magazine": VisuMagazine,
         "switch": VisuSwitch,
         "buffer": VisuBuffer,
         "carrier": VisuCarrier
