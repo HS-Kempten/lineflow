@@ -175,7 +175,6 @@ class Station(StationaryObject):
 
         data = ConnectionData(
             type=str(self.__class__.__mro__[-4].__name__).lower(),
-            layer=2,
             name=self.name,
             position=self.position,
         )

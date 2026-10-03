@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.new_visualization import run_visualization, setup_communication_pair, ConnectionData
+from lineflow.simulation.visualization import run_visualization, setup_communication_pair, ConnectionData
 
 logger = logging.getLogger(__name__)
 
