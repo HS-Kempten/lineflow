@@ -121,17 +121,22 @@ class Buffer(Connector):
     def get_visualization_data(self):
         data = [
             ConnectionData(
-                type='connector',
-                layer=1,
-                start=self._position_input,
-                end=self._position_output,
-                n_slots=self.capacity,
+                type='buffer',
+                name=self.name,
+                position=self._position_input,
+                endpoint=self._position_output,
+                capacity=self.capacity,
             )
         ]
+        self._add_visualization_states(data[0])
         for carrier in self.carriers.values():
             data.append(carrier.get_visualization_data(with_text=True))
 
         return data
+
+    def _add_visualization_states(self, data:ConnectionData) -> None:
+        for k in self.state.states:
+            data.__setattr__(k, self.state[k].to_str())
 
     def _sample_put_time(self):
         return self.put_time + self.random.exponential(scale=self.put_std)

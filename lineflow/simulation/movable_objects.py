@@ -184,7 +184,6 @@ class Carrier(MovableObject):
 
         data = ConnectionData(
             type='carrier',
-            layer=3,
             name=self.name,
             position=self._position,
             fill=fill,
