@@ -506,6 +506,38 @@ class VisuMagazine(VisuStation):
         self.render_magazine(surface)
 
 
+class VisuSource(VisuStation):
+    def render_source(self, surface) -> None:
+        pygame.draw.polygon(
+            surface,
+            "black",
+            [self.Rect.center+pygame.Vector2(0, -self.height/4)/self.view_z,
+                self.Rect.center+pygame.Vector2(self.width/4, self.height/5)/self.view_z,
+                self.Rect.center+pygame.Vector2(-self.width/4, self.height/5)/self.view_z,
+            ]
+        )
+
+    def draw(self, surface) -> None:
+        super().draw(surface=surface)
+        self.render_source(surface)
+
+
+class VisuSink(VisuStation):
+    def render_sink(self, surface) -> None:
+        pygame.draw.polygon(
+            surface,
+            "black",
+            [self.Rect.center+pygame.Vector2(0, self.height/4)/self.view_z,
+                self.Rect.center+pygame.Vector2(self.width/4, -self.height/5)/self.view_z,
+                self.Rect.center+pygame.Vector2(-self.width/4, -self.height/5)/self.view_z,
+            ]
+        )
+
+    def draw(self, surface) -> None:
+        super().draw(surface=surface)
+        self.render_sink(surface)
+
+
 class VisuConnector(VisuEquivalent):
     def __init__(self, obj:ConnectionData) -> None:
         super().__init__(obj=obj)
@@ -734,8 +766,8 @@ class VisuManager:
     object_mapping = {
         "station": VisuStation,
         "process": VisuStation,
-        "source": VisuStation,
-        "sink": VisuStation,
+        "source": VisuSource,
+        "sink": VisuSink,
         "assembly": VisuStation,
         "magazine": VisuMagazine,
         "switch": VisuSwitch,
