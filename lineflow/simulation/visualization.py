@@ -351,6 +351,10 @@ class VisuStation(VisuEquivalent):
             "failing": "red",
         }
         self.processing_time = []
+        try:
+            self.worker_skill = obj.worker_skill
+        except AttributeError:
+            self.worker_skill = None
 
     @property
     def station_color(self) -> str:
@@ -377,6 +381,10 @@ class VisuStation(VisuEquivalent):
         super().update(obj=obj)
         self.mode = obj.mode
         self.on = obj.on
+        try:
+            self.worker_skill = obj.worker_skill
+        except AttributeError:
+            self.worker_skill = None
         self.processing_time.append(round(float(obj.processing_time),1))
         if len(self.processing_time) > 100:
             self.processing_time.pop(0)
@@ -408,9 +416,21 @@ class VisuStation(VisuEquivalent):
             border_radius = int(max(1, self.radius/self.view_z))
         )
 
+    def render_worker_skill(self, surface) -> None:
+        font = pygame.font.SysFont(None,int(14/self.view_z))
+        info_text = font.render("W=" + str(self.worker_skill),False, "black")
+        surface.blit(
+            info_text,
+            info_text.get_rect(
+            center=self.Rect.center,
+            )
+        )
+
     def draw(self, surface) -> None:
         self.renderBlock(surface)
         self.renderName(surface)
+        if self.worker_skill is not None:
+            self.render_worker_skill(surface)
         if self.hovered:
             self.render_outline(surface)
 
