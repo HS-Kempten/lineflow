@@ -197,12 +197,16 @@ class MiniMap(VisuObject):
 class Tooltip(VisuObject):
     def __init__(self, temp_objects):
         self.temp_objects = temp_objects
-        self.type = None
         self.active = True
+        self.state = ["on", "all", "off"]
 
     @property
     def mouse_pos(self) -> pygame.Vector2:
         return pygame.Vector2(pygame.mouse.get_pos())
+
+    def cycle_state(self) -> None:
+        old_state = self.state.pop(0)
+        self.state.append(old_state)
 
     def toggle(self) -> None:
         self.active = not self.active
@@ -304,11 +308,12 @@ class Tooltip(VisuObject):
                 self.render_number(viewport.surface, obj.fill, pos_x=obj.center.x, pos_y=obj.center.y, text_color="darkgray")
 
     def draw(self, viewport):
-        if self.active:
+        if self.state[0] == "on":
             self.draw_all_tooltips(viewport)
-        else:
+        elif self.state[0] == "all":
             self.draw_hovered_objects(viewport)
-
+        else:
+            pass
                 
 #Start of Simulation Equivalent Classes
 
@@ -740,7 +745,7 @@ def check_user_input(dt, viewport, minimap, connection, tooltip) -> None:
             if event.key == pygame.K_m:
                 minimap.toggle()
             if event.key == pygame.K_t:
-                tooltip.toggle()
+                tooltip.cycle_state()
         elif event.type == pygame.MOUSEWHEEL:
             viewport.view.z += 5 * event.y * viewport.view.z * dt
     
