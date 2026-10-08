@@ -285,10 +285,13 @@ class Tooltip(VisuObject):
                 if len(obj.processing_time) > 0:
                     self.render_number(viewport.surface, obj.processing_time[-1])
                     self.render_processing_graph(viewport.surface, obj.processing_time)
+                break
             elif isinstance(obj, VisuCarrier):
                 self.render_number(viewport.surface, obj.fill)
+                break
             elif isinstance(obj, VisuBuffer):
                 self.render_number(viewport.surface, obj.fill)
+                break
 
     def draw_all_tooltips(self, viewport):
         for obj in self.temp_objects:
@@ -538,6 +541,14 @@ class VisuSink(VisuStation):
         self.render_sink(surface)
 
 
+def calculate_height(a, b, c):
+    height = (a+b+c)/2
+    return abs(float(height))
+
+def calculate_area(u, a, b, c):
+    area = (u*(u-a)*(u-b)*(u-c))**(1/2)
+    return float(area)
+
 class VisuConnector(VisuEquivalent):
     def __init__(self, obj:ConnectionData) -> None:
         super().__init__(obj=obj)
@@ -549,6 +560,46 @@ class VisuConnector(VisuEquivalent):
         center = self.window_center + (self.view_offset + self.position + (self.endpoint - self.position)/2)/self.view_z
         return center
     
+    @property
+    def hovered(self) -> bool:
+        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
+        A = self.window_center + (self.view_offset + self.position)/self.view_z
+        B = self.window_center + (self.view_offset + self.endpoint)/self.view_z
+        line_vector = B - A
+        width = self.width/self.view_z
+        length = line_vector.magnitude()
+        line_area = width * length
+        orthogonal_vector = line_vector.rotate(90).normalize()*width/2
+        negative_orthogonal_vector = orthogonal_vector.rotate(180)
+        P1 = A + orthogonal_vector
+        P2 = B + orthogonal_vector
+        P3 = B + negative_orthogonal_vector
+        P4 = A + negative_orthogonal_vector
+        V1 = P1 - mouse_pos
+        V2 = P2 - mouse_pos
+        V3 = P3 - mouse_pos
+        V4 = P4 - mouse_pos
+        a1 = length
+        a2 = width
+        a3 = length
+        a4 = width
+        b1 = V1.magnitude()
+        b2 = V2.magnitude()
+        b3 = V3.magnitude()
+        b4 = V4.magnitude()
+        u1 = calculate_height(a1, b1, b2)
+        u2 = calculate_height(a2, b2, b3)
+        u3 = calculate_height(a3, b3, b4)
+        u4 = calculate_height(a4, b4, b1)
+        A1 = calculate_area(u1, a1, b1, b2)
+        A2 = calculate_area(u2, a2, b2, b3)
+        A3 = calculate_area(u3, a3, b3, b4)
+        A4 = calculate_area(u4, a4, b4, b1)
+        sum_area =  A1 + A2 + A3 + A4
+        if (10/self.view_z + line_area) >= sum_area:
+            return True
+        else:
+            return False
 
     def renderLine(self, surface) -> None:
         pygame.draw.line(
