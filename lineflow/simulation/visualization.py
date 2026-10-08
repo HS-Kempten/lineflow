@@ -606,16 +606,19 @@ class VisuConnector(VisuEquivalent):
         u2 = calculate_height(a2, b2, b3)
         u3 = calculate_height(a3, b3, b4)
         u4 = calculate_height(a4, b4, b1)
-        A1 = calculate_area(u1, a1, b1, b2)
-        A2 = calculate_area(u2, a2, b2, b3)
-        A3 = calculate_area(u3, a3, b3, b4)
-        A4 = calculate_area(u4, a4, b4, b1)
-        sum_area =  A1 + A2 + A3 + A4
-        if (10/self.view_z + line_area) >= sum_area:
-            return True
-        else:
+        try:
+            A1 = calculate_area(u1, a1, b1, b2)
+            A2 = calculate_area(u2, a2, b2, b3)
+            A3 = calculate_area(u3, a3, b3, b4)
+            A4 = calculate_area(u4, a4, b4, b1)
+            sum_area =  A1 + A2 + A3 + A4
+            if (10/self.view_z + line_area) >= sum_area:
+                return True
+            else:
+                return False
+        except TypeError:
             return False
-
+        
     def renderLine(self, surface) -> None:
         pygame.draw.line(
             surface,
