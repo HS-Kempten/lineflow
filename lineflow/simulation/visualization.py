@@ -208,6 +208,10 @@ class Tooltip(VisuObject):
         old_state = self.state.pop(0)
         self.state.append(old_state)
 
+    def turn_off(self) -> None:
+        while self.state[0] != "off":
+            self.cycle_state()
+
     def toggle(self) -> None:
         self.active = not self.active
 
@@ -282,20 +286,26 @@ class Tooltip(VisuObject):
             )
 
     def draw_hovered_objects(self, viewport):
-        for obj in self.temp_objects:
-            if not obj.hovered:
-                pass
-            elif isinstance(obj, VisuStation):
-                if len(obj.processing_time) > 0:
-                    self.render_number(viewport.surface, obj.processing_time[-1])
-                    self.render_processing_graph(viewport.surface, obj.processing_time)
-                break
-            elif isinstance(obj, VisuCarrier):
-                self.render_number(viewport.surface, obj.fill)
-                break
-            elif isinstance(obj, VisuBuffer):
-                self.render_number(viewport.surface, obj.fill)
-                break
+        hoverlist = [obj.hovered for obj in self.temp_objects]
+        start = 0
+        indices = []
+        for _ in range(hoverlist.count(True)):
+            indices.append(hoverlist.index(True, start))
+            start = indices[-1] +1
+        
+        if len(indices) > 0:
+            obj = self.temp_objects[indices[-1]]
+        else:
+            obj = None
+
+        if isinstance(obj, VisuStation):
+            if len(obj.processing_time) > 0:
+                self.render_number(viewport.surface, obj.processing_time[-1])
+                self.render_processing_graph(viewport.surface, obj.processing_time)
+        elif isinstance(obj, VisuCarrier):
+            self.render_number(viewport.surface, obj.fill)
+        elif isinstance(obj, VisuBuffer):
+            self.render_number(viewport.surface, obj.fill)
 
     def draw_all_tooltips(self, viewport):
         for obj in self.temp_objects:
