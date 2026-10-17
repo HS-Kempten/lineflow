@@ -262,6 +262,12 @@ class Line:
         while True:
             yield self.env.timeout(self.step_size)
 
+    def merge_actions(self, actions, other_actions):
+        if other_actions is None:
+            return
+        for k in other_actions:
+            actions[k] = other_actions[k]
+
     def run(
         self,
         simulation_end,
@@ -306,7 +312,10 @@ class Line:
                 break
 
             if agent is not None:
+                self.connection.recieve_all()
+                visu_actions = self.connection.data
                 actions = agent(self.state, self.env)
+                self.merge_actions(actions, visu_actions)
                 self.apply(actions)
 
             if visualize:

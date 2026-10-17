@@ -319,7 +319,7 @@ class Tooltip(VisuObject):
         else:
             pass
     
-                
+
 #Start of Simulation Equivalent Classes
 
 class VisuEquivalent(VisuObject):
@@ -625,6 +625,7 @@ class VisuBuffer(VisuConnector):
         self.renderSlots(surface)
 
         if self.hovered:
+        # why
             font = pygame.font.SysFont(None, int(20/self.view_z))
             fill_text = font.render(str(self.fill), True, 'black')
             surface.blit(
@@ -717,40 +718,6 @@ def find_line_size(temp_visu_objects, line_bounds=None) -> pygame.Vector2:
 
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
-
-def check_user_input(dt, viewport, minimap, connection, tooltip) -> None:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            connection.halt_event.set()
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_m:
-                minimap.toggle()
-            if event.key == pygame.K_t:
-                tooltip.cycle_state()
-        elif event.type == pygame.MOUSEWHEEL:
-            viewport.view.z += 5 * event.y * viewport.view.z * dt
-    
-    _mouse = pygame.mouse.get_pressed(num_buttons=3)
-    mouse_rel = pygame.mouse.get_rel()
-    if _mouse[0]:
-        viewport.view.x += mouse_rel[0] * viewport.view.z
-        viewport.view.y += mouse_rel[1] * viewport.view.z
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_q]:
-        viewport.view.z -= 3*viewport.view.z*dt
-    if keys[pygame.K_e]:
-        viewport.view.z += 3*viewport.view.z*dt
-    if keys[pygame.K_w] or keys[pygame.K_UP]:
-        viewport.view.y += 300*viewport.view.z*dt
-    if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-        viewport.view.y -= 300*viewport.view.z*dt
-    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-        viewport.view.x += 300*viewport.view.z*dt
-    if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-        viewport.view.x -= 300*viewport.view.z*dt
-    if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
-        connection.halt_event.set()
-    viewport.view.z = max(0.5,min(10,viewport.view.z))
 
 def draw_objects_of_type(type, viewport, manager) -> None:
     for obj in manager.temp_visu_objects:
@@ -859,6 +826,50 @@ class VisuManager:
     def update_offsets(self, viewport) -> None:
         for visu_obj in self.temp_visu_objects:
             visu_obj.update_offset(viewport)
+
+    def dothings(self):
+        # this WILL break things if used on a switch that doesn't have index_buffer_in actionable
+        action = None
+        for obj in self.temp_visu_objects:
+            if isinstance(obj, VisuSwitch) and obj.hovered:
+                action = {obj.name:{'index_buffer_in': 4}}
+        self.connection.send(action)
+
+    def check_user_input(self, dt, viewport, minimap, connection, tooltip) -> None:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                connection.halt_event.set()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_m:
+                    minimap.toggle()
+                if event.key == pygame.K_t:
+                    tooltip.cycle_state()
+                if event.key == pygame.K_o:
+                    self.dothings()
+            elif event.type == pygame.MOUSEWHEEL:
+                viewport.view.z += 5 * event.y * viewport.view.z * dt
+        
+        _mouse = pygame.mouse.get_pressed(num_buttons=3)
+        mouse_rel = pygame.mouse.get_rel()
+        if _mouse[0]:
+            viewport.view.x += mouse_rel[0] * viewport.view.z
+            viewport.view.y += mouse_rel[1] * viewport.view.z
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_q]:
+            viewport.view.z -= 3*viewport.view.z*dt
+        if keys[pygame.K_e]:
+            viewport.view.z += 3*viewport.view.z*dt
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            viewport.view.y += 300*viewport.view.z*dt
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            viewport.view.y -= 300*viewport.view.z*dt
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            viewport.view.x += 300*viewport.view.z*dt
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            viewport.view.x -= 300*viewport.view.z*dt
+        if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
+            connection.halt_event.set()
+        viewport.view.z = max(0.5,min(10,viewport.view.z))
     
 
 def run_visualization(connection: Communication) -> None:
@@ -875,7 +886,7 @@ def run_visualization(connection: Communication) -> None:
     try:
         while running:
             if viewport.is_initialized:
-                check_user_input(dt, viewport, manager.perm_visu_objects[0], connection, manager.perm_visu_objects[1])
+                manager.check_user_input(dt, viewport, manager.perm_visu_objects[0], connection, manager.perm_visu_objects[1])
             if connection.stop_event.is_set():
                 running = False
                 break
@@ -884,11 +895,13 @@ def run_visualization(connection: Communication) -> None:
             manager.heartbeat()
     
             if not viewport.is_initialized and connection.data is not None:
+                # can I create these objects as part of the manager and fill them later...
                 manager.add(MiniMap(manager.temp_visu_objects, find_line_size(manager.temp_visu_objects), scale=0.2))
                 manager.add(Tooltip(manager.temp_visu_objects))
                 manager.add(Crosshair(viewport.window.center))
                 viewport.set_initial_view(line_size=find_line_size(manager.temp_visu_objects))
             if viewport.is_initialized:
+                # update_offsets call as part of draw_scene
                 manager.update_offsets(viewport)
                 draw_scene(viewport, manager)
             if connection.halt_event.is_set():
