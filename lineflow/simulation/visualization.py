@@ -521,6 +521,7 @@ class VisuMagazine(VisuStation):
 
 class VisuSource(VisuStation):
     def render_source(self, surface) -> None:
+        #render a plus instead
         pygame.draw.polygon(
             surface,
             "black",
@@ -537,6 +538,7 @@ class VisuSource(VisuStation):
 
 class VisuSink(VisuStation):
     def render_sink(self, surface) -> None:
+        #render a minus instead
         pygame.draw.polygon(
             surface,
             "black",
@@ -624,17 +626,6 @@ class VisuBuffer(VisuConnector):
         super().draw(surface=surface)
         self.renderSlots(surface)
 
-        if self.hovered:
-        # why
-            font = pygame.font.SysFont(None, int(20/self.view_z))
-            fill_text = font.render(str(self.fill), True, 'black')
-            surface.blit(
-                fill_text,
-                fill_text.get_rect(
-                    center=self.center
-                )
-            )
-
 
 class VisuCarrier(VisuEquivalent):
     def __init__(self, obj:ConnectionData) -> None:
@@ -695,27 +686,6 @@ class VisuCarrier(VisuEquivalent):
 #End of Simulation Equivalent Classes
 
 
-
-def find_line_bounds(temp_visu_objects) -> pygame.Vector2:
-    x_positions = []
-    y_positions = []
-    for item in temp_visu_objects:
-        x_positions.append(item.position.x)
-        y_positions.append(item.position.y)
-    line_bounds = dict(
-        upper_left=pygame.Vector2(min(x_positions), min(y_positions)),
-        lower_right=pygame.Vector2(max(x_positions), max(y_positions))
-    )
-    return line_bounds
-
-def find_line_size(temp_visu_objects, line_bounds=None) -> pygame.Vector2:
-    if line_bounds is None:
-        line_bounds = find_line_bounds(temp_visu_objects)
-    line_width = line_bounds['lower_right'].x - line_bounds['upper_left'].x
-    line_height = line_bounds['lower_right'].y - line_bounds['upper_left'].y
-    line_center = line_bounds['upper_left'] + (line_width/2,line_height/2)
-    return (line_width, line_height, line_center)
-
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
 
@@ -723,10 +693,9 @@ def draw_objects_of_type(type, viewport, manager) -> None:
     for obj in manager.temp_visu_objects:
         if isinstance(obj, type):
             obj.draw(viewport.surface)
-    for obj in manager.perm_visu_objects:
+    for obj in [manager.crosshair, manager.minimap, manager.tooltip]:
         if isinstance(obj, type):
             obj.draw(viewport)
-
 
 class Viewport:
     def __init__(self, screen):
@@ -759,9 +728,9 @@ class Viewport:
         return self.view is not None
 
 
-def draw_scene(viewport: Viewport, manager) -> None:
+def draw_scene(viewport, manager) -> None:
     clear(viewport.screen)
-
+    manager.update_offsets(viewport)
     for cls in [VisuConnector, VisuStation, VisuCarrier, Crosshair, MiniMap, Tooltip]:
         draw_objects_of_type(cls, viewport, manager)
 
@@ -779,19 +748,18 @@ class VisuManager:
         "carrier": VisuCarrier
     }
     temp_objects = (VisuStation, VisuSwitch, VisuBuffer, VisuCarrier)
-    def __init__(self, connection):
-        self.perm_visu_objects = []
+    def __init__(self, connection, viewport):
+        self.minimap = None
+        self.tooltip = None
+        self.crosshair = Crosshair(viewport.window.center)
         self.temp_visu_objects = []
         self.connection = connection
+        self.line_size = None
 
     def receive_data(self):
         self.connection.recieve_all()
 
-    def add(self, obj) -> None:
-        self.perm_visu_objects.append(obj)
-
     def create(self, obj_spec) -> None:
-
         obj = self.object_mapping[obj_spec.type](obj_spec)
 
         if isinstance(obj, self.temp_objects):
@@ -801,6 +769,29 @@ class VisuManager:
     
     def remove(self, obj):
         self.temp_visu_objects.remove(obj)
+
+    def instantiate_minimap(self):
+        self.minimap = MiniMap(self.temp_visu_objects, size=self.line_size, scale=0.3)
+
+    def instantiate_tooltip(self):
+        self.tooltip = Tooltip(self.temp_visu_objects)
+
+    def find_line_size(self) -> None:
+        x_positions = []
+        y_positions = []
+        for item in self.temp_visu_objects:
+            x_positions.append(item.position.x)
+            y_positions.append(item.position.y)
+        line_bounds = dict(
+            upper_left=pygame.Vector2(min(x_positions), min(y_positions)),
+            lower_right=pygame.Vector2(max(x_positions), max(y_positions))
+        )
+        line_width = line_bounds['lower_right'].x - line_bounds['upper_left'].x
+        line_height = line_bounds['lower_right'].y - line_bounds['upper_left'].y
+        line_center = line_bounds['upper_left'] + (line_width/2,line_height/2)
+        self.line_size = (line_width, line_height, line_center)
+        self.instantiate_minimap()
+        self.instantiate_tooltip()
 
     @property
     def data(self):
@@ -835,15 +826,15 @@ class VisuManager:
                 action = {obj.name:{'index_buffer_in': 4}}
         self.connection.send(action)
 
-    def check_user_input(self, dt, viewport, minimap, connection, tooltip) -> None:
+    def check_user_input(self, dt, viewport, connection) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 connection.halt_event.set()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
-                    minimap.toggle()
+                    self.minimap.toggle()
                 if event.key == pygame.K_t:
-                    tooltip.cycle_state()
+                    self.tooltip.cycle_state()
                 if event.key == pygame.K_o:
                     self.dothings()
             elif event.type == pygame.MOUSEWHEEL:
@@ -882,11 +873,11 @@ def run_visualization(connection: Communication) -> None:
 
     viewport = Viewport(screen)
 
-    manager = VisuManager(connection)
+    manager = VisuManager(connection, viewport)
     try:
         while running:
             if viewport.is_initialized:
-                manager.check_user_input(dt, viewport, manager.perm_visu_objects[0], connection, manager.perm_visu_objects[1])
+                manager.check_user_input(dt, viewport, connection)
             if connection.stop_event.is_set():
                 running = False
                 break
@@ -895,14 +886,9 @@ def run_visualization(connection: Communication) -> None:
             manager.heartbeat()
     
             if not viewport.is_initialized and connection.data is not None:
-                # can I create these objects as part of the manager and fill them later...
-                manager.add(MiniMap(manager.temp_visu_objects, find_line_size(manager.temp_visu_objects), scale=0.2))
-                manager.add(Tooltip(manager.temp_visu_objects))
-                manager.add(Crosshair(viewport.window.center))
-                viewport.set_initial_view(line_size=find_line_size(manager.temp_visu_objects))
+                manager.find_line_size()
+                viewport.set_initial_view(line_size=manager.line_size)
             if viewport.is_initialized:
-                # update_offsets call as part of draw_scene
-                manager.update_offsets(viewport)
                 draw_scene(viewport, manager)
             if connection.halt_event.is_set():
                 clear(screen)
