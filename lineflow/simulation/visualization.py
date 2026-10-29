@@ -197,9 +197,7 @@ class MiniMap(VisuObject):
             viewport.surface.blit(self.render_minimap(viewport), self.position)
 
 
-
 # TODO: Make cycle_state consitent with toggle where Minimap has only two states ("on" and "off")
-
 # TODO: Tooltip is rather a tooltip layer -> has to be drawed last
 class Tooltip(VisuObject):
     def __init__(self, temp_objects):
@@ -405,6 +403,7 @@ class VisuStation(VisuLineObject):
         if len(self.processing_time) > 100:
             self.processing_time.pop(0)
 
+    # TODO: Improve naming
     def renderBlock(self, surface) -> None:
         pygame.draw.rect(
             surface,
@@ -413,6 +412,7 @@ class VisuStation(VisuLineObject):
             border_radius = int(max(1,self.radius/self.view_z))
         )
 
+    # TODO: IMprove naming
     def renderName(self, surface) -> None:
         font = pygame.font.SysFont(None, int(20/self.view_z))
         name_text = font.render(self.name, True, 'black')
@@ -692,14 +692,6 @@ class VisuCarrier(VisuLineObject):
 def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
 
-def draw_objects_of_type(type, viewport, manager) -> None:
-    for obj in manager.visu_line_objects:
-        if isinstance(obj, type):
-            obj.draw(viewport.surface)
-    for obj in [manager.crosshair, manager.minimap, manager.tooltip]:
-        if isinstance(obj, type):
-            obj.draw(viewport)
-
 class Viewport:
     def __init__(self, screen):
         self.window = Window()
@@ -730,10 +722,21 @@ class Viewport:
     def is_initialized(self):
         return self.view is not None
 
+def draw_objects_of_type(type, viewport, manager) -> None:
+
+    # TODO: Can we resolve this inconcistenance
+    for obj in manager.visu_line_objects:
+        if isinstance(obj, type):
+            obj.draw(viewport.surface)
+    for obj in [manager.crosshair, manager.minimap, manager.tooltip]:
+        if isinstance(obj, type):
+            obj.draw(viewport)
+
 
 def draw_scene(viewport, manager) -> None:
     clear(viewport.screen)
     manager.update_offsets(viewport)
+    # This sets the layer: Plot from background to foreground
     for cls in [VisuConnector, VisuStation, VisuCarrier, Crosshair, MiniMap, Tooltip]:
         draw_objects_of_type(cls, viewport, manager)
 
@@ -768,7 +771,7 @@ class VisuManager:
     def instantiate_tooltip(self):
         self.tooltip = Tooltip(self.visu_line_objects)
 
-    def find_line_size(self) -> None:
+    def compute_line_size(self) -> None:
         x_positions = []
         y_positions = []
         for item in self.visu_line_objects:
@@ -883,11 +886,12 @@ def run_visualization(connection: Communication) -> None:
             manager.heartbeat()
     
             if not viewport.is_initialized and len(manager.visu_line_objects)> 0:
+                # NOTE: This needs to be done multiple times
                 manager.instantiate_tooltip()
-
-                manager.find_line_size()
+                manager.compute_line_size()
                 manager.instantiate_minimap()
                 viewport.set_initial_view(line_size=manager.line_size)
+
             if viewport.is_initialized:
                 draw_scene(viewport, manager)
             if connection.halt_event.is_set():
