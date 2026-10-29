@@ -94,8 +94,11 @@ class View:
 
 # Definition of Visualization specific Objects
 class VisuObject:
-    def __init__(self, position:pygame.Vector2) -> None:
-        self.position = position
+    def __init__(self, position) -> None:
+        if isinstance(position, pygame.Vector2):
+            self.position = position
+        else:
+            self.position = pygame.Vector2(position)
 
     def draw(self, viewport) -> None:
         raise NotImplementedError()
@@ -709,19 +712,19 @@ class Viewport:
 
     def set_initial_view(self, line_size=None):
         if line_size is None:
-            line_width, line_height, line_center = find_line_size()
+            self.view = View(0, 0, 1)
         else:
             line_width, line_height, line_center = line_size
-        x = -line_center.x
-        y = -line_center.y
-        x_scalar = line_width / (self.window.size.x-100)
-        y_scalar = line_height / (self.window.size.y-100)
-        scalar = max(x_scalar,y_scalar)
-        if scalar < 1:
-            z = 1
-        else:
-            z = round(scalar,1)
-        self.view = View(x,y,z)
+            x = -line_center.x
+            y = -line_center.y
+            x_scalar = line_width / (self.window.size.x-100)
+            y_scalar = line_height / (self.window.size.y-100)
+            scalar = max(x_scalar,y_scalar)
+            if scalar < 1:
+                z = 1
+            else:
+                z = round(scalar,1)
+            self.view = View(x,y,z)
 
     @property
     def is_initialized(self):
