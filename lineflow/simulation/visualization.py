@@ -8,9 +8,11 @@ Over there a `VisuManager` keeps one `VisuLineObject` per record and draws
 them, together with the overlays (crosshair, minimap, tooltips), onto the
 window. All coordinate conversions go through the `Viewport`.
 """
-from collections import namedtuple
+from __future__ import annotations
+
 from multiprocessing import Event, Queue
 from queue import Empty
+from typing import Any, NamedTuple
 
 import pygame
 
@@ -21,6 +23,11 @@ class ConnectionData:
     def __init__(self, type: str, **kwargs):
         self.type = type
         self.__dict__.update(kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        # Only reached for fields that were not sent. Declaring it tells type
+        # checkers that a record carries arbitrary fields.
+        raise AttributeError(name)
 
     def __repr__(self):
         fields = ", ".join(f"{k}={v!r}" for k, v in self.__dict__.items() if k != "type")
@@ -97,7 +104,10 @@ class View:
         self.z = max(self.z_min, min(self.z_max, self.z * factor))
 
 
-LineBounds = namedtuple("LineBounds", ["width", "height", "center"])
+class LineBounds(NamedTuple):
+    width: float
+    height: float
+    center: pygame.Vector2
 
 
 def compute_line_bounds(objects) -> LineBounds:
@@ -115,11 +125,7 @@ class Viewport:
     def __init__(self, screen: pygame.Surface):
         self.window = Window
         self.screen = screen
-        self.view = None
-
-    @property
-    def is_initialized(self) -> bool:
-        return self.view is not None
+        self.view = View()  # identity until `set_initial_view` fits the line
 
     def set_initial_view(self, bounds: LineBounds, margin: int = 100) -> None:
         """Centres the line and zooms out until it fits the window with a margin."""
@@ -143,7 +149,11 @@ class Viewport:
         return pygame.Rect(self.to_screen(center - size / 2), self.px(size))
 
 
-TooltipInfo = namedtuple("TooltipInfo", ["value", "anchor", "color", "history"], defaults=[None])
+class TooltipInfo(NamedTuple):
+    value: float
+    anchor: pygame.Vector2
+    color: str
+    history: list[float] | None = None
 
 
 class VisuObject:
@@ -176,12 +186,16 @@ class MiniMap(VisuObject):
     border = pygame.Vector2(2, 2)
     margin = pygame.Vector2(10, 10)
 
-    def __init__(self, objects: dict, bounds: LineBounds, scale: float = 0.3):
-        self.objects = objects  # the manager's live name -> VisuLineObject dict
+    def __init__(self, objects: dict[str, VisuLineObject], scale: float = 0.3):
+        self.objects = objects  # the manager's live dict
         self.active = True
         self.scale = scale
-        self.size = pygame.Vector2(bounds.width, bounds.height) * scale + self.margin * 2
-        self.offset = self.size / 2 - bounds.center * scale
+        self.fit(LineBounds(0, 0, pygame.Vector2()))
+
+    def fit(self, bounds: LineBounds) -> None:
+        """Sizes the map so that the line fits in and places it in the top right corner."""
+        self.size = pygame.Vector2(bounds.width, bounds.height) * self.scale + self.margin * 2
+        self.offset = self.size / 2 - bounds.center * self.scale
         self.position = pygame.Vector2(Window.size.x - self.size.x - self.border.x, self.border.y)
         self.surface = pygame.Surface(self.size)
 
@@ -223,8 +237,8 @@ class Tooltip(VisuObject):
     layer = 5
     states = ("all", "hovered", "off")
 
-    def __init__(self, objects: dict):
-        self.objects = objects  # the manager's live name -> VisuLineObject dict
+    def __init__(self, objects: dict[str, VisuLineObject]):
+        self.objects = objects  # the manager's live dict
         self.state_index = 0
 
     @property
@@ -301,7 +315,7 @@ class VisuLineObject(VisuObject):
     def is_hovered(self, viewport: Viewport) -> bool:
         return self.rect(viewport).collidepoint(pygame.mouse.get_pos())
 
-    def tooltip(self, viewport: Viewport):
+    def tooltip(self, viewport: Viewport) -> TooltipInfo | None:
         """What the tooltip layer shows for this object, or None."""
         return None
 
@@ -389,7 +403,7 @@ class VisuStation(VisuLineObject):
             int(self.height / 2 * minimap.scale),
         )
 
-    def tooltip(self, viewport: Viewport):
+    def tooltip(self, viewport: Viewport) -> TooltipInfo | None:
         if not self.processing_times:
             return None
         anchor = pygame.Vector2(self.rect(viewport).topright)
@@ -495,7 +509,7 @@ class VisuBuffer(VisuConnector):
         super().draw(viewport)
         self.draw_slots(viewport)
 
-    def tooltip(self, viewport: Viewport):
+    def tooltip(self, viewport: Viewport) -> TooltipInfo:
         return TooltipInfo(self.fill, self.center(viewport), "darkgray")
 
 
@@ -529,7 +543,7 @@ class VisuCarrier(VisuLineObject):
             int(self.width / 3 * minimap.scale),
         )
 
-    def tooltip(self, viewport: Viewport):
+    def tooltip(self, viewport: Viewport) -> TooltipInfo:
         return TooltipInfo(self.fill, pygame.Vector2(self.rect(viewport).midtop), "orange")
 
 
@@ -551,14 +565,11 @@ class VisuManager:
     def __init__(self, connection: Communication, viewport: Viewport):
         self.connection = connection
         self.viewport = viewport
-        self.objects = {}  # name -> VisuLineObject, shared with the minimap and the tooltip layer
+        self.objects: dict[str, VisuLineObject] = {}  # shared with the minimap and the tooltip layer
         self.crosshair = Crosshair(viewport.window.center)
-        self.minimap = None
-        self.tooltip = None
-
-    @property
-    def is_initialized(self) -> bool:
-        return self.viewport.is_initialized
+        self.minimap = MiniMap(self.objects)
+        self.tooltip = Tooltip(self.objects)
+        self.is_initialized = False
 
     def sync(self, payload) -> None:
         """Updates, creates and removes objects so that they match the records the line sent."""
@@ -573,11 +584,11 @@ class VisuManager:
                 self.objects[name] = self.object_mapping[data.type](data)
 
     def initialize(self) -> None:
-        """Sets up the view and the overlays; needs at least one object."""
+        """Fits the view and the minimap to the line; needs at least one object."""
         bounds = compute_line_bounds(self.objects.values())
         self.viewport.set_initial_view(bounds)
-        self.minimap = MiniMap(self.objects, bounds)
-        self.tooltip = Tooltip(self.objects)
+        self.minimap.fit(bounds)
+        self.is_initialized = True
 
     @property
     def drawables(self):
