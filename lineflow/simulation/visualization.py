@@ -52,7 +52,7 @@ class Communication:
         self.new_data = False
 
     def new_event(self, name):
-        #only use before starting second process
+        # only use before starting second process
         event = Event()
         self.__setattr__(name, event)
         if self.child is not None:
@@ -197,10 +197,13 @@ class MiniMap(VisuObject):
             viewport.surface.blit(self.render_minimap(viewport), self.position)
 
 
+
+# TODO: Make cycle_state consitent with toggle where Minimap has only two states ("on" and "off")
+
+# TODO: Tooltip is rather a tooltip layer -> has to be drawed last
 class Tooltip(VisuObject):
     def __init__(self, temp_objects):
         self.temp_objects = temp_objects
-        self.active = True
         self.state = ["on", "all", "off"]
 
     @property
@@ -214,9 +217,6 @@ class Tooltip(VisuObject):
     def turn_off(self) -> None:
         while self.state[0] != "off":
             self.cycle_state()
-
-    def toggle(self) -> None:
-        self.active = not self.active
 
     def render_number(self, surface, number, pos_x=None, pos_y=None, border_color="black", text_color="black") -> None:
         if pos_x is None:
@@ -326,7 +326,7 @@ class Tooltip(VisuObject):
 
 # Start of Simulation Equivalent Classes
 class VisuLineObject(VisuObject):
-    def __init__(self, obj:ConnectionData):
+    def __init__(self, obj: ConnectionData):
         self.name = obj.name
         self.position = obj.position
         self.color = "gray"
@@ -334,7 +334,7 @@ class VisuLineObject(VisuObject):
         self.view_offset = pygame.Vector2(0, 0)
         self.view_z = 1.0
 
-    def __eq__(self, other:str) -> bool:
+    def __eq__(self, other: str) -> bool:
         return self.name == other
 
     @property
@@ -354,7 +354,7 @@ class VisuLineObject(VisuObject):
 
 
 class VisuStation(VisuLineObject):
-    def __init__(self, obj:ConnectionData):
+    def __init__(self, obj: ConnectionData):
         super().__init__(obj=obj)
         self.mode = obj.mode
         self.on = obj.on
@@ -693,7 +693,7 @@ def clear(surface:pygame.Surface) -> None:
     surface.fill("white")
 
 def draw_objects_of_type(type, viewport, manager) -> None:
-    for obj in manager.temp_visu_objects:
+    for obj in manager.visu_line_objects:
         if isinstance(obj, type):
             obj.draw(viewport.surface)
     for obj in [manager.crosshair, manager.minimap, manager.tooltip]:
@@ -755,34 +755,23 @@ class VisuManager:
         self.minimap = None
         self.tooltip = None
         self.crosshair = Crosshair(viewport.window.center)
-        self.temp_visu_objects = []
+        self.visu_line_objects = []
         self.connection = connection
         self.line_size = None
 
     def receive_data(self):
         self.connection.recieve_all()
 
-    def create(self, obj_spec) -> None:
-        obj = self.object_mapping[obj_spec.type](obj_spec)
-
-        if isinstance(obj, self.temp_objects):
-            self.temp_visu_objects.append(obj)
-        else:
-            self.perm_visu_objects.append(obj)
-    
-    def remove(self, obj):
-        self.temp_visu_objects.remove(obj)
-
     def instantiate_minimap(self):
-        self.minimap = MiniMap(self.temp_visu_objects, size=self.line_size, scale=0.3)
+        self.minimap = MiniMap(self.visu_line_objects, size=self.line_size, scale=0.3)
 
     def instantiate_tooltip(self):
-        self.tooltip = Tooltip(self.temp_visu_objects)
+        self.tooltip = Tooltip(self.visu_line_objects)
 
     def find_line_size(self) -> None:
         x_positions = []
         y_positions = []
-        for item in self.temp_visu_objects:
+        for item in self.visu_line_objects:
             x_positions.append(item.position.x)
             y_positions.append(item.position.y)
         line_bounds = dict(
@@ -793,8 +782,6 @@ class VisuManager:
         line_height = line_bounds['lower_right'].y - line_bounds['upper_left'].y
         line_center = line_bounds['upper_left'] + (line_width/2,line_height/2)
         self.line_size = (line_width, line_height, line_center)
-        self.instantiate_minimap()
-        self.instantiate_tooltip()
 
     @property
     def data(self):
@@ -803,28 +790,35 @@ class VisuManager:
     def heartbeat(self) -> None:
         if self.connection.new_data:
             remove_from_visu = []
-            for visu_obj in self.temp_visu_objects:
+
+            # TODO: visu_line_object is a list of unique elements, instead we could also operate
+            # with set operations
+            # A possible problem amy be that data sends objects of same name multiple times
+            for visu_obj in self.visu_line_objects:
                 if visu_obj not in self.data:
                     remove_from_visu.append(visu_obj)
                 else:
+                    # NOTE: self.data is a list of ConnectionData objects, index works because of __eq__
                     i = self.data.index(visu_obj.name)
                     visu_obj.update(self.data[i])
             for visu_obj in remove_from_visu:
-                self.remove(visu_obj)
-            remove_from_visu = []
-            for sim_obj in self.data:
-                if sim_obj not in self.temp_visu_objects:
-                    self.create(sim_obj)
+                self.visu_line_objects.remove(visu_obj)
+
+            for obj_spec in self.data:
+                if obj_spec not in self.visu_line_objects:
+                    obj = self.object_mapping[obj_spec.type](obj_spec)
+                    self.visu_line_objects.append(obj)
+
             self.connection.new_data = False
 
     def update_offsets(self, viewport) -> None:
-        for visu_obj in self.temp_visu_objects:
+        for visu_obj in self.visu_line_objects:
             visu_obj.update_offset(viewport)
 
     def dothings(self):
         # this WILL break things if used on a switch that doesn't have index_buffer_in actionable
         action = None
-        for obj in self.temp_visu_objects:
+        for obj in self.visu_line_objects:
             if isinstance(obj, VisuSwitch) and obj.hovered:
                 action = {obj.name:{'index_buffer_in': 4}}
         self.connection.send(action)
@@ -888,8 +882,11 @@ def run_visualization(connection: Communication) -> None:
             manager.receive_data()
             manager.heartbeat()
     
-            if not viewport.is_initialized and connection.data is not None:
+            if not viewport.is_initialized and len(manager.visu_line_objects)> 0:
+                manager.instantiate_tooltip()
+
                 manager.find_line_size()
+                manager.instantiate_minimap()
                 viewport.set_initial_view(line_size=manager.line_size)
             if viewport.is_initialized:
                 draw_scene(viewport, manager)
