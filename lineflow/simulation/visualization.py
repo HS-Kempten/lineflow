@@ -305,6 +305,7 @@ class Tooltip(VisuObject):
                 return
 
     def draw_all_tooltips(self, viewport):
+
         for obj in self.temp_objects:
             if isinstance(obj, VisuStation) and len(obj.processing_time) > 0:
                 self.render_number(viewport.surface, obj.processing_time[-1], pos_x=obj.Rect.right, pos_y=obj.Rect.top, text_color="darkgreen")
@@ -323,9 +324,8 @@ class Tooltip(VisuObject):
             pass
     
 
-#Start of Simulation Equivalent Classes
-
-class VisuEquivalent(VisuObject):
+# Start of Simulation Equivalent Classes
+class VisuLineObject(VisuObject):
     def __init__(self, obj:ConnectionData):
         self.name = obj.name
         self.position = obj.position
@@ -353,7 +353,7 @@ class VisuEquivalent(VisuObject):
         raise NotImplementedError()
 
 
-class VisuStation(VisuEquivalent):
+class VisuStation(VisuLineObject):
     def __init__(self, obj:ConnectionData):
         super().__init__(obj=obj)
         self.mode = obj.mode
@@ -556,7 +556,7 @@ class VisuSink(VisuStation):
         self.render_sink(surface)
 
 
-class VisuConnector(VisuEquivalent):
+class VisuConnector(VisuLineObject):
     def __init__(self, obj:ConnectionData) -> None:
         super().__init__(obj=obj)
         self.endpoint = obj.endpoint
@@ -630,7 +630,7 @@ class VisuBuffer(VisuConnector):
         self.renderSlots(surface)
 
 
-class VisuCarrier(VisuEquivalent):
+class VisuCarrier(VisuLineObject):
     def __init__(self, obj:ConnectionData) -> None:
         super().__init__(obj=obj)
         self.fill = obj.fill
