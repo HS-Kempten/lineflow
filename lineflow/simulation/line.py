@@ -312,10 +312,11 @@ class Line:
                 break
 
             if agent is not None:
-                self.connection.recieve_all()
-                visu_actions = self.connection.data
                 actions = agent(self.state, self.env)
-                self.merge_actions(actions, visu_actions)
+                if visualize:
+                    self.connection.recieve_all()
+                    visu_actions = self.connection.data
+                    self.merge_actions(actions, visu_actions)
                 self.apply(actions)
 
             if visualize:
