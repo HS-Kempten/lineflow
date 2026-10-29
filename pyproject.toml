@@ -40,6 +40,7 @@ dev = [
     'mkdocs',
     'mkdocs-material',
     'mkdocstrings-python',
+    'pymdown-extensions<12.2',
     'mike',
     'ruff',
     'debugpy',
