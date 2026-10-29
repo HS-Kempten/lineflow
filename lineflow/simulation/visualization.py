@@ -7,8 +7,7 @@ from multiprocessing import Queue, Event
 logger = logging.getLogger(__name__)
 
 class ConnectionData:
-    """Object for transfering data to Visualization
-    ToDo: Remove redundant Methods"""
+    """Object for transfering data to Visualization"""
 
     def __init__(self, type:str, **kwargs):
         self.type = type
@@ -876,7 +875,7 @@ def run_visualization(connection: Communication) -> None:
             manager.heartbeat()
     
             if not viewport.is_initialized and len(manager.visu_line_objects)> 0:
-                # NOTE: This needs to be done multiple times
+                # NOTE: This needs to be done only once
                 manager.instantiate_tooltip()
                 manager.compute_line_size()
                 manager.instantiate_minimap()
