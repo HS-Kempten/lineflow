@@ -818,14 +818,6 @@ class VisuManager:
         for visu_obj in self.visu_line_objects:
             visu_obj.update_offset(viewport)
 
-    def dothings(self):
-        # this WILL break things if used on a switch that doesn't have index_buffer_in actionable
-        action = None
-        for obj in self.visu_line_objects:
-            if isinstance(obj, VisuSwitch) and obj.hovered:
-                action = {obj.name:{'index_buffer_in': 4}}
-        self.connection.send(action)
-
     def check_user_input(self, dt, viewport, connection) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -835,8 +827,6 @@ class VisuManager:
                     self.minimap.toggle()
                 if event.key == pygame.K_t:
                     self.tooltip.cycle_state()
-                if event.key == pygame.K_o:
-                    self.dothings()
             elif event.type == pygame.MOUSEWHEEL:
                 viewport.view.z += 5 * event.y * viewport.view.z * dt
         
