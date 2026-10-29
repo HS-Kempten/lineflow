@@ -414,16 +414,20 @@ class TestHeadlessRendering(unittest.TestCase):
         with over_source:
             off_over_source = frame_bytes(self.scene.render())
 
-        self.scene.send_input(press_t)
-        self.assertNotEqual(frame_bytes(self.scene.render()), off, "every object gets a tooltip")
+        # Per state: is the frame unchanged with the mouse at the origin, and over the source?
+        unchanged = {}
+        for _ in range(3):
+            self.scene.send_input(press_t)
+            with over_source:
+                over_source_unchanged = frame_bytes(self.scene.render()) == off_over_source
+            unchanged[self.scene.manager.tooltip.state] = (
+                frame_bytes(self.scene.render()) == off,
+                over_source_unchanged,
+            )
 
-        self.scene.send_input(press_t)
-        self.assertEqual(frame_bytes(self.scene.render()), off, "the mouse rests at the origin: nothing is hovered")
-        with over_source:
-            self.assertNotEqual(frame_bytes(self.scene.render()), off_over_source, "the hovered station gets one")
-
-        self.scene.send_input(press_t)
-        self.assertEqual(frame_bytes(self.scene.render()), off)
+        self.assertEqual(unchanged["off"], (True, True))
+        self.assertEqual(unchanged["hovered"], (True, False), "only the hovered station gets a tooltip")
+        self.assertEqual(unchanged["all"], (False, False), "every object gets a tooltip")
 
 
 class TestCommunication(unittest.TestCase):

@@ -523,7 +523,7 @@ class VisuCarrier(VisuLineObject):
 
     def update(self, data: ConnectionData) -> None:
         super().update(data)
-        self.fill = data.fill
+        self.fill = round(float(data.fill), 2)
 
     def items_rect(self, viewport: Viewport) -> pygame.Rect:
         """Inner part of the carrier, filled from the left according to `fill`."""
