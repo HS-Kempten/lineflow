@@ -13,7 +13,7 @@ from lineflow.simulation.stations import (
     Station,
     Sink,
 )
-from lineflow.simulation.visualization import run_visualization, setup_communication_pair, ConnectionData
+from lineflow.simulation.visualization import run_visualization, setup_communication_pair
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,6 @@ class Line:
         """
 
         self.connection, visu_connection = setup_communication_pair()
-        self.connection.new_event("stop_event")
-        self.connection.new_event("halt_event")
         self.visualization_process = Process(
             target=run_visualization,
             args=(visu_connection,)
@@ -74,9 +72,7 @@ class Line:
         if hasattr(self, 'visualization_process'):
             self.connection.stop_event.set()
             self.visualization_process.join()
-            # Payloads the visualization never consumed would otherwise keep the
-            # queue's feeder thread blocked, and with it the interpreter at exit.
-            self.connection.queue_out.cancel_join_thread()
+            self.connection.close()
 
 
     @property
@@ -205,27 +201,14 @@ class Line:
         for o in self._objects.values():
             o.register(self.env)
 
-    def _send_data_to_visualization(self, actions=None):
+    def _send_data_to_visualization(self):
         if not self.connection.stop_event.is_set():
             data = []
-
-            for _, obj in self._objects.items():
+            for obj in self._objects.values():
                 if isinstance(obj, Station):
                     data.append(obj.get_visualization_data())
-
                 if isinstance(obj, Connector):
                     data.extend(obj.get_visualization_data())
-
-#            data.append(
-#                ConnectionData(
-#                    type='info',
-#                    layer=10,
-#                    time=self.env.now,
-#                    n_parts=self.get_n_parts_produced()
-#                )
-#            )
-#            if actions is not None:
-#                data.append(ConnectionData(type='actions',layer=11, actions=actions))
             self.connection.send(data)
 
     def apply(self, values):
@@ -265,12 +248,6 @@ class Line:
         while True:
             yield self.env.timeout(self.step_size)
 
-    def merge_actions(self, actions, other_actions):
-        if other_actions is None:
-            return
-        for k in other_actions:
-            actions[k] = other_actions[k]
-
     def run(
         self,
         simulation_end,
@@ -295,7 +272,6 @@ class Line:
             self._register_objects_at_env()
 
         now = 0
-        actions = None
         pbar = tqdm(
             total=simulation_end,
             bar_format='{desc}: {percentage:3.2f}%|{bar:50}|',
@@ -316,14 +292,10 @@ class Line:
 
             if agent is not None:
                 actions = agent(self.state, self.env)
-                if visualize:
-                    self.connection.recieve_all()
-                    visu_actions = self.connection.data
-                    self.merge_actions(actions, visu_actions)
                 self.apply(actions)
 
             if visualize:
-                self._send_data_to_visualization(actions)
+                self._send_data_to_visualization()
 
         if visualize:
             self._close_visualization()

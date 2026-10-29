@@ -51,6 +51,10 @@ def count_non_white(surface):
     return surface.get_width() * surface.get_height() - count_pixels(surface, WHITE)
 
 
+def frame_bytes(surface):
+    return pygame.image.tobytes(surface, "RGB")
+
+
 def expected_station_color(data):
     """Color a station is drawn in, given the data the line sent for it."""
     return pygame.Color(STATION_COLORS[data.mode] if data.on else "gray")
@@ -64,7 +68,7 @@ def run_visualization_instrumented(connection):
         if count_non_white(pygame.display.get_surface()) > 0:
             frames += 1
             if frames == 1:
-                connection.send({})
+                connection.send("drawn")
         flip()
 
     pygame.display.flip = counting_flip
@@ -89,7 +93,7 @@ class VisualizationAwareAgent:
 
     def __call__(self, state, env):
         if not self.ready:
-            if self.line.connection.data is not None:
+            if self.line.connection.receive_latest() is not None:
                 self.ready_at = env.now
             elif time.monotonic() - self.started > self.timeout:
                 raise AssertionError("The visualization did not draw a frame in time")
@@ -134,24 +138,21 @@ def run_visualized(line, timeout=120, **kwargs):
 def wait_until_drawn(line, timeout=60):
     """Blocks until the instrumented visualization has drawn its first frame."""
     deadline = time.monotonic() + timeout
-    while line.connection.data is None:
+    while line.connection.receive_latest() is None:
         if time.monotonic() > deadline:
             raise AssertionError("The visualization did not draw a frame in time")
         time.sleep(0.05)
-        line.connection.recieve_all()
 
 
 def frames_drawn(line, timeout=5):
     """Frame count the instrumented visualization reported when it ended."""
     deadline = time.monotonic() + timeout
-    while True:
-        line.connection.recieve_all()
-        data = line.connection.data
+    while time.monotonic() < deadline:
+        data = line.connection.receive_latest()
         if isinstance(data, dict) and "frames" in data:
             return data["frames"]
-        if time.monotonic() > deadline:
-            raise AssertionError(f"No frame report from the visualization process, got {data!r}")
         time.sleep(0.05)
+    raise AssertionError("No frame report from the visualization process")
 
 
 class TestVisualizationProcess(unittest.TestCase):
@@ -228,10 +229,9 @@ class HeadlessScene:
     def __init__(self, line):
         self.line = line
         to_visu, to_line = queue.Queue(), queue.Queue()
-        self.connection = visu.Communication(to_visu, to_line)
-        line.connection = visu.Communication(to_line, to_visu, child=self.connection)
-        line.connection.new_event("stop_event")
-        line.connection.new_event("halt_event")
+        stop_event, halt_event = threading.Event(), threading.Event()
+        line.connection = visu.Communication(to_line, to_visu, stop_event, halt_event)
+        self.connection = visu.Communication(to_visu, to_line, stop_event, halt_event)
         for obj in line._objects.values():
             if isinstance(obj, Connector):
                 obj.setup_positions()
@@ -250,22 +250,20 @@ class HeadlessScene:
 
     def render(self):
         """One pass of the ``run_visualization`` loop: receive, sync the objects, draw."""
-        self.manager.receive_data()
-        self.manager.heartbeat()
-        if not self.viewport.is_initialized:
-            self.manager.instantiate_tooltip()
-            self.manager.compute_line_size()
-            self.manager.instantiate_minimap()
-            self.viewport.set_initial_view(line_size=self.manager.line_size)
+        payload = self.connection.receive_latest()
+        if payload is not None:
+            self.payload = payload
+            self.manager.sync(payload)
+        if not self.manager.is_initialized:
+            self.manager.initialize()
             self.manager.tooltip.turn_off()  # tooltips get their own test
-        visu.draw_scene(self.viewport, self.manager)
-        self.payload = self.manager.data
+        self.manager.draw_scene()
         return self.screen
 
     def send_input(self, *events, dt=0.1):
         for event in events:
             pygame.event.post(event)
-        self.manager.check_user_input(dt, self.viewport, self.connection)
+        self.manager.check_user_input(dt)
 
     def stations(self):
         return [d for d in self.payload if d.type not in ("buffer", "carrier")]
@@ -300,18 +298,18 @@ class TestHeadlessRendering(unittest.TestCase):
     def test_objects_follow_the_payload(self):
         self.scene.advance(20)
         self.scene.render()
-        objects = self.scene.manager.visu_line_objects
+        objects = self.scene.manager.objects
         by_name = {d.name: d for d in self.scene.payload}
-        self.assertEqual({o.name for o in objects}, set(by_name))
-        for obj in objects:
-            self.assertIsInstance(obj, visu.VisuManager.object_mapping[by_name[obj.name].type])
+        self.assertEqual(set(objects), set(by_name))
+        for name, obj in objects.items():
+            self.assertIsInstance(obj, visu.VisuManager.object_mapping[by_name[name].type])
         carriers_before = {d.name for d in self.scene.carriers()}
         self.assertTrue(carriers_before)
 
         self.scene.advance(200)
         self.scene.render()
         carriers_after = {d.name for d in self.scene.carriers()}
-        self.assertEqual({o.name for o in objects}, {d.name for d in self.scene.payload})
+        self.assertEqual(set(objects), {d.name for d in self.scene.payload})
         self.assertTrue(carriers_before - carriers_after, "carriers that reached the sink are removed")
         self.assertTrue(carriers_after - carriers_before, "new carriers are added")
 
@@ -405,38 +403,42 @@ class TestHeadlessRendering(unittest.TestCase):
     def test_t_cycles_through_the_tooltip_states(self):
         self.scene.advance(30)
         self.scene.render()
+        source = next(d for d in self.scene.payload if d.type == "source")
+        over_source = mock.patch(
+            "pygame.mouse.get_pos", return_value=self.scene.rect(source.position, 30, 30).center
+        )
+        press_t = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_t)
+
         self.scene.manager.tooltip.turn_off()
-        off = count_non_white(self.scene.render())
+        off = frame_bytes(self.scene.render())
+        with over_source:
+            off_over_source = frame_bytes(self.scene.render())
 
-        counts = []
-        for _ in range(2):
-            self.scene.send_input(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_t))
-            counts.append(count_non_white(self.scene.render()))
-        # One state shows a tooltip for every object, the other only for the
-        # hovered one, and the mouse rests at the origin where nothing is.
-        self.assertEqual(min(counts), off)
-        self.assertGreater(max(counts), off)
+        self.scene.send_input(press_t)
+        self.assertNotEqual(frame_bytes(self.scene.render()), off, "every object gets a tooltip")
 
-        self.scene.send_input(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_t))
-        self.assertEqual(count_non_white(self.scene.render()), off)
+        self.scene.send_input(press_t)
+        self.assertEqual(frame_bytes(self.scene.render()), off, "the mouse rests at the origin: nothing is hovered")
+        with over_source:
+            self.assertNotEqual(frame_bytes(self.scene.render()), off_over_source, "the hovered station gets one")
+
+        self.scene.send_input(press_t)
+        self.assertEqual(frame_bytes(self.scene.render()), off)
 
 
 class TestCommunication(unittest.TestCase):
 
-    def test_pair_shares_events_and_keeps_the_latest_payload(self):
-        parent, child = visu.setup_communication_pair()
-        parent.new_event("stop_event")
-        self.assertIs(parent.stop_event, child.stop_event)
+    def test_pair_shares_events_and_delivers_the_latest_payload(self):
+        line_end, visu_end = visu.setup_communication_pair()
+        self.assertIs(line_end.stop_event, visu_end.stop_event)
+        self.assertIs(line_end.halt_event, visu_end.halt_event)
 
         for i in range(3):
-            parent.send({"i": i})
+            line_end.send({"i": i})
         deadline = time.monotonic() + 5
-        while child.data != {"i": 2}:
+        latest = None
+        while latest != {"i": 2}:
             self.assertLess(time.monotonic(), deadline, "payloads did not arrive")
             time.sleep(0.01)
-            child.recieve_all()
-        self.assertTrue(child.new_data)
-
-        child.recieve_all()
-        self.assertFalse(child.new_data)
-        self.assertEqual(child.data, {"i": 2})
+            latest = visu_end.receive_latest() or latest
+        self.assertIsNone(visu_end.receive_latest(), "the queue is drained")

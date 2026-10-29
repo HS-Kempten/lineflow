@@ -180,7 +180,7 @@ class Station(StationaryObject):
         )
         self._add_visualization_states(data)
         self._add_visualization_info(data)
-        if not 'processing_time' in data:
+        if not hasattr(data, 'processing_time'):
             data.processing_time = self.processing_time
         return data
 
