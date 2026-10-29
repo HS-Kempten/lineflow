@@ -235,7 +235,7 @@ class Tooltip(VisuObject):
     """
 
     layer = 5
-    states = ("all", "hovered", "off")
+    states = ("hovered", "all", "off")
 
     def __init__(self, objects: dict[str, VisuLineObject]):
         self.objects = objects  # the manager's live dict
