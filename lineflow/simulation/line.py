@@ -74,6 +74,9 @@ class Line:
         if hasattr(self, 'visualization_process'):
             self.connection.stop_event.set()
             self.visualization_process.join()
+            # Payloads the visualization never consumed would otherwise keep the
+            # queue's feeder thread blocked, and with it the interpreter at exit.
+            self.connection.queue_out.cancel_join_thread()
 
 
     @property
