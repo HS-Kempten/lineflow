@@ -531,9 +531,17 @@ class VisuCarrier(VisuLineObject):
         inner = self.rect(viewport).inflate(-border, -border)
         return pygame.Rect(inner.left, inner.top, inner.width * self.fill, inner.height)
 
+    def draw_name(self, viewport: Viewport) -> None:
+        font = pygame.font.SysFont(None, int(viewport.px(20)))
+        text = font.render(self.name, False, "blue")
+        center = viewport.to_screen(self.position + (0, +1.3 * self.height))
+        viewport.screen.blit(text, text.get_rect(center=center))
+
     def draw(self, viewport: Viewport) -> None:
         pygame.draw.rect(viewport.screen, self.color, self.rect(viewport))
         pygame.draw.rect(viewport.screen, self.item_color, self.items_rect(viewport))
+        if self.is_hovered(viewport):
+            self.draw_name(viewport)
 
     def draw_simple(self, minimap: MiniMap) -> None:
         pygame.draw.circle(
