@@ -10,6 +10,7 @@ window. All coordinate conversions go through the `Viewport`.
 """
 from __future__ import annotations
 
+from itertools import cycle
 from multiprocessing import Event, Queue
 from queue import Empty
 from typing import Any, NamedTuple
@@ -178,7 +179,23 @@ class Crosshair(VisuObject):
             pygame.draw.line(viewport.screen, self.color, self.position + arm, self.position - arm)
 
 
-class MiniMap(VisuObject):
+class Overlay(VisuObject):
+    """
+    Drawn on top of the line. A key cycles through its `states`; in the
+    `off` state it draws nothing.
+    """
+
+    states: tuple[str, ...] = ("on", "off")
+
+    def __init__(self):
+        self._cycle = cycle(self.states)
+        self.cycle_state()
+
+    def cycle_state(self) -> None:
+        self.state = next(self._cycle)
+
+
+class MiniMap(Overlay):
     """Scaled-down drawing of the line objects in the top right corner, with the current view outlined."""
 
     layer = 4
@@ -187,8 +204,8 @@ class MiniMap(VisuObject):
     margin = pygame.Vector2(10, 10)
 
     def __init__(self, objects: dict[str, VisuLineObject], scale: float = 0.3):
+        super().__init__()
         self.objects = objects  # the manager's live dict
-        self.active = True
         self.scale = scale
         self.fit(LineBounds(0, 0, pygame.Vector2()))
 
@@ -203,9 +220,6 @@ class MiniMap(VisuObject):
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.position - self.border, self.size + self.border * 2)
 
-    def toggle(self) -> None:
-        self.active = not self.active
-
     def to_map(self, point) -> pygame.Vector2:
         """World point in pixels of the minimap surface."""
         return self.offset + point * self.scale
@@ -218,7 +232,7 @@ class MiniMap(VisuObject):
         pygame.draw.circle(self.surface, self.color, self.offset - view.offset * self.scale, 3, width=1)
 
     def draw(self, viewport: Viewport) -> None:
-        if not self.active:
+        if self.state == "off":
             return
         self.surface.fill("white")
         for obj in sorted(self.objects.values(), key=lambda obj: obj.layer):
@@ -228,7 +242,7 @@ class MiniMap(VisuObject):
         viewport.screen.blit(self.surface, self.position)
 
 
-class Tooltip(VisuObject):
+class Tooltip(Overlay):
     """
     Tooltip layer, drawn last. It shows the value of every object (`all`),
     of the object under the mouse (`hovered`), or nothing (`off`).
@@ -238,18 +252,8 @@ class Tooltip(VisuObject):
     states = ("hovered", "all", "off")
 
     def __init__(self, objects: dict[str, VisuLineObject]):
+        super().__init__()
         self.objects = objects  # the manager's live dict
-        self.state_index = 0
-
-    @property
-    def state(self) -> str:
-        return self.states[self.state_index]
-
-    def cycle_state(self) -> None:
-        self.state_index = (self.state_index + 1) % len(self.states)
-
-    def turn_off(self) -> None:
-        self.state_index = self.states.index("off")
 
     @staticmethod
     def draw_box(surface, rect: pygame.Rect, border_color="black") -> None:
@@ -616,7 +620,7 @@ class VisuManager:
                 self.connection.halt_event.set()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
-                    self.minimap.toggle()
+                    self.minimap.cycle_state()
                 if event.key == pygame.K_t:
                     self.tooltip.cycle_state()
             elif event.type == pygame.MOUSEWHEEL:

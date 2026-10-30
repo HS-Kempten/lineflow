@@ -59,6 +59,12 @@ def expected_station_color(data):
     """Color a station is drawn in, given the data the line sent for it."""
     return pygame.Color(STATION_COLORS[data.mode] if data.on else "gray")
 
+
+def turn_off(overlay):
+    """Cycles the overlay until it is in its ``off`` state."""
+    while overlay.state != "off":
+        overlay.cycle_state()
+
 def run_visualization_instrumented(connection):
     frames = 0
     flip = pygame.display.flip
@@ -256,7 +262,7 @@ class HeadlessScene:
             self.manager.sync(payload)
         if not self.manager.is_initialized:
             self.manager.initialize()
-            self.manager.tooltip.turn_off()  # tooltips get their own test
+            turn_off(self.manager.tooltip)  # tooltips get their own test
         self.manager.draw_scene()
         return self.screen
 
@@ -409,7 +415,7 @@ class TestHeadlessRendering(unittest.TestCase):
         )
         press_t = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_t)
 
-        self.scene.manager.tooltip.turn_off()
+        turn_off(self.scene.manager.tooltip)
         off = frame_bytes(self.scene.render())
         with over_source:
             off_over_source = frame_bytes(self.scene.render())
@@ -428,6 +434,27 @@ class TestHeadlessRendering(unittest.TestCase):
         self.assertEqual(unchanged["off"], (True, True))
         self.assertEqual(unchanged["hovered"], (True, False), "only the hovered station gets a tooltip")
         self.assertEqual(unchanged["all"], (False, False), "every object gets a tooltip")
+
+
+class TestOverlays(unittest.TestCase):
+    """The minimap and the tooltip layer share the state cycling of `Overlay`."""
+
+    def test_minimap_cycles_between_on_and_off(self):
+        minimap = visu.MiniMap({})
+        self.assertEqual(minimap.states, ("on", "off"))
+        self.assertEqual(minimap.state, "on")
+        minimap.cycle_state()
+        self.assertEqual(minimap.state, "off")
+        minimap.cycle_state()
+        self.assertEqual(minimap.state, "on")
+
+    def test_tooltip_cycles_and_wraps_around(self):
+        tooltip = visu.Tooltip({})
+        seen = [tooltip.state]
+        for _ in range(3):
+            tooltip.cycle_state()
+            seen.append(tooltip.state)
+        self.assertEqual(seen, ["hovered", "all", "off", "hovered"])
 
 
 class TestCommunication(unittest.TestCase):
