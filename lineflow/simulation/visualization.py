@@ -1,505 +1,677 @@
-import pygame
-import logging
+"""
+Pygame visualization of a line.
+
+The line runs in the main process and sends, after every step, a list of
+`ConnectionData` records (one per station, buffer and carrier) through a
+`Communication` channel to a second process running `run_visualization`.
+Over there a `VisuManager` keeps one `VisuLineObject` per record and draws
+them, together with the overlays (crosshair, minimap, tooltips), onto the
+window. All coordinate conversions go through the `Viewport`.
+"""
+from __future__ import annotations
+
+from itertools import cycle
+from multiprocessing import Event, Queue
 from queue import Empty
-from multiprocessing import Queue, Event
+from typing import Any, NamedTuple
 
+import pygame
 
-logger = logging.getLogger(__name__)
 
 class ConnectionData:
-    """Object for transfering data to Visualization"""
+    """Attribute bag describing one line object, sent from the line to the visualization."""
 
-    def __init__(self, type:str, layer:int, **kwargs):
+    def __init__(self, type: str, **kwargs):
         self.type = type
-        self.layer = layer
-        for k, v in kwargs.items():
-            self.__setattr__(k, v)
+        self.__dict__.update(kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        # Only reached for fields that were not sent. Declaring it tells type
+        # checkers that a record carries arbitrary fields.
+        raise AttributeError(name)
 
     def __repr__(self):
-        rep = f"{self.type}("
-        for n, k in enumerate(self.__dict__):
-            if not k == "type":
-                rep += f"{k}={self.__dict__[k]}"
-                if n < len(self.__dict__)-1:
-                    rep += f","
-        rep += f")" 
-        return rep
+        fields = ", ".join(f"{k}={v!r}" for k, v in self.__dict__.items() if k != "type")
+        return f"{self.type}({fields})"
 
-    def __iter__(self):
-        for k in self.__dict__:
-            yield k
-
-    def __lt__(self, other):
-        return self.layer < other.layer
-
-
-def setup_communication_pair():
-    child = Communication(Queue(), Queue())
-    parent = Communication(child.queue_out,child.queue_in, child)
-    return parent, child
 
 class Communication:
     """
-    To be imported by line.py setup 2 instances and give 1 to visualization_process as arg.
-    or just import setup_communication_pair
+    One end of the channel between the line and the visualization process.
+
+    Both ends share the two queues (crosswise) and the two events: `stop_event`
+    ends the visualization process, `halt_event` asks the line to stop the
+    simulation (it is set when the window is closed).
     """
 
-    def __init__(self, queue_in, queue_out,  child=None):
-        self.data = None
+    def __init__(self, queue_in, queue_out, stop_event, halt_event):
         self.queue_in = queue_in
         self.queue_out = queue_out
-        self.child = child
+        self.stop_event = stop_event
+        self.halt_event = halt_event
 
-    def new_event(self, name):
-        #only use before starting second process
-        event = Event()
-        self.__setattr__(name, event)
-        if self.child is not None:
-            self.child.__setattr__(name, event)
-
-    def recieve(self):
-        try:
-            self.data = self.queue_in.get_nowait()
-        except Empty:
-            logger.warning(f"No data to read!")
-
-    def recieve_all(self):
-        while True:
-            try:
-                self.data = self.queue_in.get_nowait()
-            except Empty:
-                break
-
-    def send(self, data):
+    def send(self, data) -> None:
         self.queue_out.put(data)
 
+    def receive_latest(self):
+        """Drains the incoming queue and returns the newest item, or None if nothing arrived."""
+        latest = None
+        while True:
+            try:
+                latest = self.queue_in.get_nowait()
+            except Empty:
+                return latest
 
-class Visualization:
-    
-    def __init__(
-        self,
-        size=None,
-        viewpoint=None,
-        connection=None,
-    ):
+    def close(self) -> None:
+        """
+        Lets this process exit although the other end may never consume what
+        was sent (otherwise the queue's feeder thread blocks the interpreter).
+        """
+        self.queue_out.cancel_join_thread()
 
-        if size is None:
-            size = (1280, 720)
-        self.size = pygame.Vector2(size)
 
-        if viewpoint is not None:
-            viewpoint = pygame.Vector3(viewpoint)
-            self.view = pygame.Vector2(viewpoint.x, viewpoint.y)
-        self.viewpoint = viewpoint
-        
-        self.connection = connection
+def setup_communication_pair():
+    """Returns the line's and the visualization's end of a new channel."""
+    to_visualization, to_line = Queue(), Queue()
+    stop_event, halt_event = Event(), Event()
+    line_end = Communication(to_line, to_visualization, stop_event, halt_event)
+    visualization_end = Communication(to_visualization, to_line, stop_event, halt_event)
+    return line_end, visualization_end
 
-        self.center = pygame.Vector2(self.size.x/2, self.size.y/2)
 
-        self.initial_view_data = False
+def mouse_position() -> pygame.Vector2:
+    return pygame.Vector2(pygame.mouse.get_pos())
 
-        self.line_bounds = None
-        self.show_minimap = True
+
+class Window:
+    size = pygame.Vector2(1280, 720)
+    center = size / 2
+
+
+class View:
+    """
+    Camera of the viewport: the world point `-offset` is drawn at the window
+    centre, and world lengths are divided by the zoom `z`.
+    """
+
+    z_min = 0.5
+    z_max = 10
+
+    def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 1.0):
+        self.offset = pygame.Vector2(x, y)
+        self.z = z
+
+    def zoom(self, factor: float) -> None:
+        self.z = max(self.z_min, min(self.z_max, self.z * factor))
+
+
+class LineBounds(NamedTuple):
+    width: float
+    height: float
+    center: pygame.Vector2
+
+
+def compute_line_bounds(objects) -> LineBounds:
+    """Bounding box of the positions of the given line objects."""
+    xs = [obj.position.x for obj in objects]
+    ys = [obj.position.y for obj in objects]
+    upper_left = pygame.Vector2(min(xs), min(ys))
+    size = pygame.Vector2(max(xs), max(ys)) - upper_left
+    return LineBounds(size.x, size.y, upper_left + size / 2)
+
+
+class Viewport:
+    """Maps world coordinates of the line to pixels of the window."""
+
+    def __init__(self, screen: pygame.Surface):
+        self.window = Window
+        self.screen = screen
+        self.view = View()  # identity until `set_initial_view` fits the line
+
+    def set_initial_view(self, bounds: LineBounds, margin: int = 100) -> None:
+        """Centres the line and zooms out until it fits the window with a margin."""
+        scalar = max(
+            bounds.width / (self.window.size.x - margin),
+            bounds.height / (self.window.size.y - margin),
+        )
+        z = 1 if scalar < 1 else round(scalar, 1)
+        self.view = View(-bounds.center.x, -bounds.center.y, z)
+
+    def to_screen(self, point) -> pygame.Vector2:
+        return self.window.center + (self.view.offset + point) / self.view.z
+
+    def px(self, length):
+        """World length (or vector) in pixels."""
+        return length / self.view.z
+
+    def rect(self, center, width: float, height: float) -> pygame.Rect:
+        """Screen rectangle of a world box of the given size centred at `center`."""
+        size = pygame.Vector2(width, height)
+        return pygame.Rect(self.to_screen(center - size / 2), self.px(size))
+
+
+class TooltipInfo(NamedTuple):
+    value: float
+    anchor: pygame.Vector2
+    color: str
+    history: list[float] | None = None
+
+
+class VisuObject:
+    """Anything the scene draws. Objects are drawn in ascending `layer` order."""
+
+    layer = 0
+
+    def draw(self, viewport: Viewport) -> None:
+        raise NotImplementedError()
+
+
+class Crosshair(VisuObject):
+    layer = 3
+    size = 10
+    color = "red"
+
+    def __init__(self, position):
+        self.position = pygame.Vector2(position)
+
+    def draw(self, viewport: Viewport) -> None:
+        for arm in (pygame.Vector2(self.size, 0), pygame.Vector2(0, self.size)):
+            pygame.draw.line(viewport.screen, self.color, self.position + arm, self.position - arm)
+
+
+class Overlay(VisuObject):
+    """
+    Drawn on top of the line. A key cycles through its `states`; in the
+    `off` state it draws nothing.
+    """
+
+    states: tuple[str, ...] = ("on", "off")
+
+    def __init__(self):
+        self._cycle = cycle(self.states)
+        self.cycle_state()
+
+    def cycle_state(self) -> None:
+        self.state = next(self._cycle)
+
+
+class MiniMap(Overlay):
+    """Scaled-down drawing of the line objects in the top right corner, with the current view outlined."""
+
+    layer = 4
+    color = "red"
+    border = pygame.Vector2(2, 2)
+    margin = pygame.Vector2(10, 10)
+
+    def __init__(self, objects: dict[str, VisuLineObject], scale: float = 0.3):
+        super().__init__()
+        self.objects = objects  # the manager's live dict
+        self.scale = scale
+        self.fit(LineBounds(0, 0, pygame.Vector2()))
+
+    def fit(self, bounds: LineBounds) -> None:
+        """Sizes the map so that the line fits in and places it in the top right corner."""
+        self.size = pygame.Vector2(bounds.width, bounds.height) * self.scale + self.margin * 2
+        self.offset = self.size / 2 - bounds.center * self.scale
+        self.position = pygame.Vector2(Window.size.x - self.size.x - self.border.x, self.border.y)
+        self.surface = pygame.Surface(self.size)
 
     @property
-    def viewpoint_is_set(self):
-        return self.viewpoint is not None
+    def rect(self) -> pygame.Rect:
+        return pygame.Rect(self.position - self.border, self.size + self.border * 2)
 
-    def find_line_bounds(self):
-        x_positions = []
-        y_positions = []
-        for item in self.connection.data:
-            if 'position' in item:
-                x_positions.append(item.position.x)
-                y_positions.append(item.position.y)
-        self.line_bounds = dict(
-            upper_left=pygame.Vector2(min(x_positions), min(y_positions)),
-            lower_right=pygame.Vector2(max(x_positions), max(y_positions))
+    def to_map(self, point) -> pygame.Vector2:
+        """World point in pixels of the minimap surface."""
+        return self.offset + point * self.scale
+
+    def draw_view_outline(self, viewport: Viewport) -> None:
+        view = viewport.view
+        size = viewport.window.size * self.scale * view.z
+        top_left = self.offset - size / 2 - view.offset * self.scale
+        pygame.draw.rect(self.surface, self.color, pygame.Rect(top_left, size), width=1)
+        pygame.draw.circle(self.surface, self.color, self.offset - view.offset * self.scale, 3, width=1)
+
+    def draw(self, viewport: Viewport) -> None:
+        if self.state == "off":
+            return
+        self.surface.fill("white")
+        for obj in sorted(self.objects.values(), key=lambda obj: obj.layer):
+            obj.draw_simple(self)
+        self.draw_view_outline(viewport)
+        pygame.draw.rect(viewport.screen, self.color, self.rect)
+        viewport.screen.blit(self.surface, self.position)
+
+
+class Tooltip(Overlay):
+    """
+    Tooltip layer, drawn last. It shows the value of every object (`all`),
+    of the object under the mouse (`hovered`), or nothing (`off`).
+    """
+
+    layer = 5
+    states = ("hovered", "all", "off")
+
+    def __init__(self, objects: dict[str, VisuLineObject]):
+        super().__init__()
+        self.objects = objects  # the manager's live dict
+
+    @staticmethod
+    def draw_box(surface, rect: pygame.Rect, border_color="black") -> None:
+        pygame.draw.rect(surface, "white", rect, border_radius=8)
+        pygame.draw.rect(surface, border_color, rect, width=1, border_radius=8)
+
+    def draw_number(self, surface, number, pos, text_color="black") -> None:
+        font = pygame.font.SysFont(None, 20)
+        text = font.render(str(number), True, text_color)
+        rect = text.get_rect(left=pos.x - 30, top=pos.y - 20)
+        self.draw_box(surface, rect.inflate(4, 4))
+        surface.blit(text, rect)
+
+    def draw_history(self, surface, values, pos, color="blue") -> None:
+        """Plots the values, min-max normalised, as a small dot graph."""
+        frame = pygame.Rect(pos.x + 10, pos.y - 10, 100, 50)
+        self.draw_box(surface, frame.inflate(8, 8))
+        high, low = max(values) * 1.05, min(values) * 0.95
+        for i, value in enumerate(values):
+            factor = 1 if high == 0 else 1 - (value - low) / (high - low)
+            pygame.draw.circle(surface, color, pos + (i + 10, frame.height * factor - 10), 1)
+
+    def draw_info(self, surface, info: TooltipInfo, pos, text_color, history_color) -> None:
+        self.draw_number(surface, info.value, pos, text_color)
+        if info.history:
+            self.draw_history(surface, info.history, pos, history_color)
+
+    def draw(self, viewport: Viewport) -> None:
+        if self.state == "off":
+            return
+        # Top layer first, so that a carrier wins over the buffer below it
+        for obj in sorted(self.objects.values(), key=lambda obj: obj.layer, reverse=True):
+            info = obj.tooltip(viewport)
+            if info is None:
+                continue
+            if self.state == "all":
+                self.draw_info(viewport.screen, info, info.anchor, info.color, info.color)
+            elif obj.is_hovered(viewport):
+                self.draw_info(viewport.screen, info, mouse_position(), "black", "blue")
+                return
+
+
+class VisuLineObject(VisuObject):
+    """
+    Counterpart of a simulation object. `update` applies the data the line
+    sent; the constructor applies it for the first time.
+    """
+
+    color = "gray"
+    width = 0
+    height = 0
+
+    def __init__(self, data: ConnectionData):
+        self.name = data.name
+        self.update(data)
+
+    def update(self, data: ConnectionData) -> None:
+        self.position = pygame.Vector2(data.position)
+
+    def rect(self, viewport: Viewport) -> pygame.Rect:
+        return viewport.rect(self.position, self.width, self.height)
+
+    def is_hovered(self, viewport: Viewport) -> bool:
+        return self.rect(viewport).collidepoint(pygame.mouse.get_pos())
+
+    def tooltip(self, viewport: Viewport) -> TooltipInfo | None:
+        """What the tooltip layer shows for this object, or None."""
+        return None
+
+    def draw_simple(self, minimap: MiniMap) -> None:
+        raise NotImplementedError()
+
+
+class VisuStation(VisuLineObject):
+    layer = 1
+    width = 30
+    height = 30
+    radius = 8
+    mode_colors = {"working": "green", "waiting": "yellow", "failing": "red"}
+    history_length = 100
+    marker_direction = None  # +1 draws a triangle pointing down, -1 pointing up
+
+    def __init__(self, data: ConnectionData):
+        self.processing_times = []
+        super().__init__(data)
+
+    def update(self, data: ConnectionData) -> None:
+        super().update(data)
+        self.mode = data.mode
+        self.on = data.on
+        self.worker_skill = getattr(data, "worker_skill", None)
+        self.processing_times.append(round(float(data.processing_time), 1))
+        del self.processing_times[:-self.history_length]
+
+    @property
+    def station_color(self) -> str:
+        return self.mode_colors[self.mode] if self.on else self.color
+
+    def draw_block(self, viewport: Viewport) -> None:
+        pygame.draw.rect(
+            viewport.screen,
+            self.station_color,
+            self.rect(viewport),
+            border_radius=int(max(1, viewport.px(self.radius))),
         )
 
-    def find_line_size(self):
-        if self.line_bounds is None:
-            self.find_line_bounds()
-        line_width = self.line_bounds['lower_right'].x - self.line_bounds['upper_left'].x
-        line_height = self.line_bounds['lower_right'].y - self.line_bounds['upper_left'].y
-        line_center = self.line_bounds['upper_left'] + (line_width/2,line_height/2)
-        return line_width, line_height, line_center
+    def draw_name(self, viewport: Viewport) -> None:
+        font = pygame.font.SysFont(None, int(viewport.px(20)))
+        text = font.render(self.name, True, "black")
+        center = viewport.to_screen(self.position + (0, -0.7 * self.height))
+        viewport.screen.blit(text, text.get_rect(center=center))
 
-    def set_initial_viewpoint(self):
-        line_width, line_height, line_center = self.find_line_size()
-        x = -line_center.x
-        y = -line_center.y
-        x_scalar = line_width / (self.size.x-100)
-        y_scalar = line_height / (self.size.y-100)
-        scalar = max(x_scalar,y_scalar)
-        if scalar < 1:
-            z = 1
-        else:
-            z = round(scalar,1)
-        self.viewpoint = pygame.Vector3(x, y, z)
-        self.view = pygame.Vector2(x, y)
+    def draw_label(self, viewport: Viewport, text: str) -> None:
+        font = pygame.font.SysFont(None, int(viewport.px(14)))
+        label = font.render(text, False, "black")
+        viewport.screen.blit(label, label.get_rect(center=self.rect(viewport).center))
 
-    def clear(self):
-        self.screen.fill('white')
-
-    def check_connection(self):
-        self.connection.recieve_all()
-        if self.connection.data is not None:
-            self.initial_view_data = True
-            self.connection.data.sort()
-            
-    def draw(self):
-        self.tooltip = None
-        draw_mapping = dict(
-            carrier=self.draw_carrier,
-            connector=self.draw_connector,
-            station=self.draw_station,
-            info=self.draw_info,
-            actions=self.draw_actions
+    def draw_outline(self, viewport: Viewport) -> None:
+        pygame.draw.rect(
+            viewport.screen,
+            "blue",
+            self.rect(viewport),
+            width=int(max(1, viewport.px(self.width / 10))),
+            border_radius=int(max(1, viewport.px(self.radius))),
         )
-        for item in self.connection.data:
-            try:
-                draw_mapping[item.type](item)
-            except KeyError:
-                logger.warning(
-                    f"Unknown item type: {item.type} will not be visualized."
-                )
 
-    def draw_connector(self, connector):
-        color = 'gray'
+    def draw_marker(self, viewport: Viewport, direction: int) -> None:
+        center = pygame.Vector2(self.rect(viewport).center)
+        corners = (
+            pygame.Vector2(0, direction * self.height / 4),
+            pygame.Vector2(self.width / 4, -direction * self.height / 5),
+            pygame.Vector2(-self.width / 4, -direction * self.height / 5),
+        )
+        pygame.draw.polygon(viewport.screen, "black", [center + viewport.px(corner) for corner in corners])
+
+    def draw(self, viewport: Viewport) -> None:
+        self.draw_block(viewport)
+        self.draw_name(viewport)
+        if self.worker_skill is not None:
+            self.draw_label(viewport, f"W={self.worker_skill}")
+        if self.marker_direction is not None:
+            self.draw_marker(viewport, self.marker_direction)
+        if self.is_hovered(viewport):
+            self.draw_outline(viewport)
+
+    def draw_simple(self, minimap: MiniMap) -> None:
+        pygame.draw.circle(
+            minimap.surface,
+            self.station_color,
+            minimap.to_map(self.position),
+            int(self.height / 2 * minimap.scale),
+        )
+
+    def tooltip(self, viewport: Viewport) -> TooltipInfo | None:
+        if not self.processing_times:
+            return None
+        anchor = pygame.Vector2(self.rect(viewport).topright)
+        return TooltipInfo(self.processing_times[-1], anchor, "darkgreen", self.processing_times)
+
+
+class VisuSwitch(VisuStation):
+    connector_color = "gray"
+
+    def update(self, data: ConnectionData) -> None:
+        super().update(data)
+        self.pos_in, self.pos_out = (pygame.Vector2(pos) for pos in data.pos_in_out)
+
+    def draw_connections(self, viewport: Viewport) -> None:
+        center = viewport.to_screen(self.position)
+        width = int(viewport.px(10))
+        pygame.draw.circle(viewport.screen, self.connector_color, center, viewport.px(self.width / 4))
+        pygame.draw.line(viewport.screen, self.connector_color, viewport.to_screen(self.pos_in), center, width=width)
+        pygame.draw.line(viewport.screen, self.connector_color, center, viewport.to_screen(self.pos_out), width=width)
+
+    def draw(self, viewport: Viewport) -> None:
+        super().draw(viewport)
+        self.draw_connections(viewport)
+
+
+class VisuMagazine(VisuStation):
+    def update(self, data: ConnectionData) -> None:
+        super().update(data)
+        self.magazine = data.magazine
+
+    def draw(self, viewport: Viewport) -> None:
+        super().draw(viewport)
+        self.draw_label(viewport, f"C={self.magazine}")
+
+
+class VisuSource(VisuStation):
+    marker_direction = -1
+
+
+class VisuSink(VisuStation):
+    marker_direction = 1
+
+
+class VisuConnector(VisuLineObject):
+    layer = 0
+    width = 10
+
+    def update(self, data: ConnectionData) -> None:
+        super().update(data)
+        self.endpoint = pygame.Vector2(data.endpoint)
+
+    def center(self, viewport: Viewport) -> pygame.Vector2:
+        return viewport.to_screen((self.position + self.endpoint) / 2)
+
+    def is_hovered(self, viewport: Viewport) -> bool:
+        mouse = mouse_position()
+        start, end = viewport.to_screen(self.position), viewport.to_screen(self.endpoint)
+        half_width = viewport.px(self.width) / 2
+        line = end - start
+        length_sq = line.magnitude_squared()
+        if length_sq == 0:
+            return (mouse - start).magnitude() <= half_width
+        t = (mouse - start).dot(line) / length_sq
+        distance = abs((mouse - start).cross(line)) / length_sq**0.5
+        return 0 <= t <= 1 and distance <= half_width
+
+    def draw(self, viewport: Viewport) -> None:
         pygame.draw.line(
-            self.screen,
-            color,
-            self.center + (self.view + connector.start)/self.viewpoint.z,
-            self.center + (self.view + connector.end)/self.viewpoint.z,
-            width=int(10/self.viewpoint.z)
+            viewport.screen,
+            self.color,
+            viewport.to_screen(self.position),
+            viewport.to_screen(self.endpoint),
+            width=int(viewport.px(self.width)),
         )
-        length = connector.end/self.viewpoint.z-connector.start/self.viewpoint.z
-        snippet = length/(connector.n_slots+1)
-        for n in range(connector.n_slots):
+
+    def draw_simple(self, minimap: MiniMap) -> None:
+        pygame.draw.line(
+            minimap.surface,
+            self.color,
+            minimap.to_map(self.position),
+            minimap.to_map(self.endpoint),
+            width=int(self.width * minimap.scale),
+        )
+
+
+class VisuBuffer(VisuConnector):
+    def update(self, data: ConnectionData) -> None:
+        super().update(data)
+        self.capacity = data.capacity
+        self.fill = round(float(data.fill), 2)
+
+    def draw_slots(self, viewport: Viewport) -> None:
+        step = (self.endpoint - self.position) / (self.capacity + 1)
+        for n in range(1, self.capacity + 1):
             pygame.draw.circle(
-                self.screen,
-                color,
-                self.view/self.viewpoint.z + self.center + connector.start/self.viewpoint.z + snippet*(n+1),
-                int(10/self.viewpoint.z)
+                viewport.screen,
+                self.color,
+                viewport.to_screen(self.position + step * n),
+                int(viewport.px(self.width)),
             )
-    
-    def get_station_color(self, station):
-        color_mapping = {
-            'working': 'green',
-            'waiting': 'yellow',
-            'failing': 'red'
-        }
-        color = color_mapping[station.mode]
-        if station.on is False:
-            color = 'gray'
-        return color
 
-    def draw_station(self, station):
-        width = 30
-        height = 30
-        font = pygame.font.SysFont(None,int(20/self.viewpoint.z))
-        color = self.get_station_color(station)
-        pygame.draw.rect(
-            self.screen,
-            color,
-            pygame.Rect(
-                self.center.x + (self.viewpoint.x + station.position.x-width/2)/self.viewpoint.z,
-                self.center.y + (self.viewpoint.y + station.position.y-height/2)/self.viewpoint.z,
-                width/self.viewpoint.z,
-                height/self.viewpoint.z
-            ),
-            border_radius=int(max(1,8/self.viewpoint.z))
+    def draw(self, viewport: Viewport) -> None:
+        super().draw(viewport)
+        self.draw_slots(viewport)
+
+    def tooltip(self, viewport: Viewport) -> TooltipInfo:
+        return TooltipInfo(self.fill, self.center(viewport), "darkgray")
+
+
+class VisuCarrier(VisuLineObject):
+    layer = 2
+    color = "black"
+    item_color = "orange"
+    width = 30
+    height = 10
+    border = 2
+
+    def update(self, data: ConnectionData) -> None:
+        super().update(data)
+        self.fill = round(float(data.fill), 2)
+
+    def items_rect(self, viewport: Viewport) -> pygame.Rect:
+        """Inner part of the carrier, filled from the left according to `fill`."""
+        border = 2 * viewport.px(self.border)
+        inner = self.rect(viewport).inflate(-border, -border)
+        return pygame.Rect(inner.left, inner.top, inner.width * self.fill, inner.height)
+
+    def draw_name(self, viewport: Viewport) -> None:
+        font = pygame.font.SysFont(None, int(viewport.px(20)))
+        text = font.render(self.name, False, "blue")
+        center = viewport.to_screen(self.position + (0, +1.3 * self.height))
+        viewport.screen.blit(text, text.get_rect(center=center))
+
+    def draw(self, viewport: Viewport) -> None:
+        pygame.draw.rect(viewport.screen, self.color, self.rect(viewport))
+        pygame.draw.rect(viewport.screen, self.item_color, self.items_rect(viewport))
+        if self.is_hovered(viewport):
+            self.draw_name(viewport)
+
+    def draw_simple(self, minimap: MiniMap) -> None:
+        pygame.draw.circle(
+            minimap.surface,
+            self.item_color,
+            minimap.to_map(self.position),
+            int(self.width / 3 * minimap.scale),
         )
-        name_text = font.render(station.name,True,'black')
-        self.screen.blit(
-            name_text,
-            name_text.get_rect(
-                center=self.center + (self.view + station.position+(0,-0.7*height))/self.viewpoint.z
-            )
-        )
-        if 'worker_skill' in station or 'magazine' in station:
-            font = pygame.font.SysFont(None,int(14/self.viewpoint.z))
-            if 'worker_skill' in station:
-                info_text = font.render('W=' + str(station.worker_skill),False,'black')
+
+    def tooltip(self, viewport: Viewport) -> TooltipInfo:
+        return TooltipInfo(self.fill, pygame.Vector2(self.rect(viewport).midtop), "orange")
+
+
+class VisuManager:
+    """Keeps the visual objects in sync with the data the line sends, draws the scene and handles input."""
+
+    object_mapping = {
+        "station": VisuStation,
+        "process": VisuStation,
+        "source": VisuSource,
+        "sink": VisuSink,
+        "assembly": VisuStation,
+        "magazine": VisuMagazine,
+        "switch": VisuSwitch,
+        "buffer": VisuBuffer,
+        "carrier": VisuCarrier,
+    }
+
+    def __init__(self, connection: Communication, viewport: Viewport):
+        self.connection = connection
+        self.viewport = viewport
+        self.objects: dict[str, VisuLineObject] = {}  # shared with the minimap and the tooltip layer
+        self.crosshair = Crosshair(viewport.window.center)
+        self.minimap = MiniMap(self.objects)
+        self.tooltip = Tooltip(self.objects)
+        self.is_initialized = False
+
+    def sync(self, payload) -> None:
+        """Updates, creates and removes objects so that they match the records the line sent."""
+        incoming = {data.name: data for data in payload}
+        for name in list(self.objects):
+            if name not in incoming:
+                del self.objects[name]
+        for name, data in incoming.items():
+            if name in self.objects:
+                self.objects[name].update(data)
             else:
-                info_text = font.render('C=' + str(station.magazine),False,'black')
-            self.screen.blit(
-                info_text,
-                info_text.get_rect(
-                    center=self.center + (self.view + station.position)/self.viewpoint.z
-                )
-            )
-        if 'pos_in_out' in station:
-            pygame.draw.circle(
-                self.screen,
-                'gray',
-                self.center + (self.view + station.position)/self.viewpoint.z,
-                6/self.viewpoint.z
-            )
-            for pos in station.pos_in_out:
-                pygame.draw.line(
-                    self.screen,
-                    'gray',
-                    self.center + (self.view + station.position)/self.viewpoint.z,
-                    self.center + (self.view + pos)/self.viewpoint.z,
-                    width=int(5/self.viewpoint.z)
-                )
-        station.size = 30
-        if self.hover_over(station):
-            try:
-                p_time = round(float(station.processing_time), 2)
-            except AttributeError:
-                p_time = "NAN"
-            self.tooltip = f"P_time: {p_time}"
+                self.objects[name] = self.object_mapping[data.type](data)
 
-    def hover_over(self, obj):
-        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
-        obj_pos = self.center + (self.view + obj.position)/self.viewpoint.z
-        diff_x = abs(obj_pos.x - mouse_pos.x)
-        diff_y = abs(obj_pos.y - mouse_pos.y)
-        max_diff = obj.size/2/self.viewpoint.z
-        return diff_x < max_diff and diff_y < max_diff
+    def initialize(self) -> None:
+        """Fits the view and the minimap to the line; needs at least one object."""
+        bounds = compute_line_bounds(self.objects.values())
+        self.viewport.set_initial_view(bounds)
+        self.minimap.fit(bounds)
+        self.is_initialized = True
 
-    def draw_tooltip(self):
-        mouse_pos = pygame.Vector2(pygame.mouse.get_pos()) + (10, 0)
-        tooltip_window = pygame.Rect(mouse_pos,(100, 30))
-        pygame.draw.rect(
-            self.screen,
-            'white',
-            tooltip_window,
-            border_radius = 10
-        )
-        pygame.draw.rect(
-            self.screen,
-            'black',
-            tooltip_window,
-            width = 2,
-            border_radius = 10
-        )
-        font = pygame.font.SysFont(None, 20)
-        tooltip_text = font.render(self.tooltip,True,'black')
-        self.screen.blit(tooltip_text, mouse_pos + (5, 8))
+    @property
+    def drawables(self):
+        """All objects of the scene, background first."""
+        objects = [*self.objects.values(), self.crosshair, self.minimap, self.tooltip]
+        return sorted(objects, key=lambda obj: obj.layer)
 
-    def draw_carrier(self, carrier):
-        height = 10
-        width = 30
-        pygame.draw.rect(
-            self.screen,
-            'black',
-            pygame.Rect(
-                self.center.x + (self.viewpoint.x + carrier.position.x-width/2)/self.viewpoint.z,
-                self.center.y + (self.viewpoint.y + carrier.position.y-height/2)/self.viewpoint.z,
-                width/self.viewpoint.z,
-                height/self.viewpoint.z
-            )
-        )
-        pygame.draw.rect(
-            self.screen,
-            'orange',
-            pygame.Rect(
-                self.center.x + (self.viewpoint.x + carrier.position.x-width*0.8/2)/self.viewpoint.z,
-                self.center.y + (self.viewpoint.y + carrier.position.y-height*0.8/2)/self.viewpoint.z,
-                width*0.8*carrier.fill/self.viewpoint.z,
-                height*0.8/self.viewpoint.z
-            )
-        )
-        if 'name' in carrier:
-            font = pygame.font.SysFont(None, int(12/self.viewpoint.z))
-            text = font.render(carrier.name,False,'blue')
-            self.screen.blit(
-                text,
-                text.get_rect(
-                    center=self.center + (self.view + carrier.position)/self.viewpoint.z + (0,-1.3*height/self.viewpoint.z)
-                )
-            )
+    def draw_scene(self) -> None:
+        self.viewport.screen.fill("white")
+        for obj in self.drawables:
+            obj.draw(self.viewport)
 
-    def draw_info(self, info):
-        font = pygame.font.SysFont(None, 20)
-        time = font.render( 'T={:.2f}'.format(info.time), True, 'black', 'white')
-        n_parts = font.render( f"#Parts={info.n_parts}", True, 'black', 'white')
-        self.screen.blit(time, time.get_rect(center=(30, 30)))
-        self.screen.blit(n_parts, n_parts.get_rect(center=(30, 50)))
-
-    def draw_actions(self, actions):
-        font = pygame.font.SysFont(None, 20)
-        for n, actor_actions in enumerate(actions.actions.items()):
-            actor = actor_actions[0]
-            if len(actor_actions[1]) == 1:
-                actions = "".join(f"{action[0]}={action[1]}" for action in actor_actions[1].items())
-            else:
-                actions = "".join(f"{action[0]}={action[1]}, " for action in actor_actions[1].items())
-            text = font.render( f'{actor}: {actions}', True, 'black', 'white')
-            self.screen.blit(text, text.get_rect(center=(self.center.x, 30+n*22)))
-
-    def draw_user_input(self):
-        font = pygame.font.SysFont(None, 24)
-        text = font.render(
-            "W: up, S: down, A: left, D: right, Q: zoom in, E: zoom out, Shift+H: Exit, M: toggle minimap",
-            True,
-            'black',
-            'white'
-        )
-        self.screen.blit(text, text.get_rect(left=50,top=self.size.y-40))
-
-    def draw_loading(self):
-        font = pygame.font.SysFont(None, 48)
-        text = font.render("Loading Scene...", True, 'black')
-        self.screen.blit(text, text.get_rect(center=self.center))
-
-    def draw_shutdown(self):
-        font = pygame.font.SysFont(None, 48)
-        text = font.render("Shutting down...", True, 'black')
-        self.screen.blit(text, text.get_rect(center=self.center))
-
-    def draw_crosshair(self):
-        pygame.draw.line( self.screen, 'red', self.center + (10,0), self.center - (10,0))
-        pygame.draw.line( self.screen, 'red', self.center + (0,10), self.center - (0,10))
-
-    def draw_minimap(self):
-        if self.line_bounds is None:
-            self.find_line_bounds()
-
-        #setup minimap
-        downscale = 5
-        buffer = pygame.Vector2(20, 20)
-        line_diagonal = self.line_bounds['lower_right'] - self.line_bounds['upper_left']
-        minimap_size = pygame.Vector2(line_diagonal / downscale + buffer)
-        minimap = pygame.Surface(minimap_size)
-        minimap.fill('white')
-        minimap_pos = pygame.Vector2(self.size.x - minimap_size.x, 0)
-        draw_position = - self.line_bounds['upper_left'] / downscale + buffer /2
-        pygame.draw.rect(minimap, 'black', pygame.Rect((0,0), minimap_size), width=2)
-
-        #draw on minimap
-        for item in self.connection.data:
-            if item.type == 'connector':
-                pygame.draw.line(
-                    minimap,
-                    'gray',
-                    draw_position + item.start / downscale,
-                    draw_position + item.end / downscale,
-                )
-            if item.type == 'station':
-                color = self.get_station_color(item)
-                pygame.draw.circle(
-                    minimap,
-                    color,
-                    draw_position + item.position / downscale,
-                    5
-                )
-            if item.type == 'carrier':
-                pygame.draw.circle(
-                    minimap,
-                    'orange',
-                    draw_position + item.position / downscale,
-                    3
-                )
-
-        #draw outline of current view and crosshair
-        view_outline = pygame.Rect(
-            draw_position - self.view / downscale - self.size / downscale * self.viewpoint.z / 2,
-            self.size / downscale * self.viewpoint.z
-        )
-        pygame.draw.line(
-            minimap,
-            'red',
-            draw_position - self.view / downscale + (3,0),
-            draw_position - self.view / downscale - (3,0)
-        )
-        pygame.draw.line(
-            minimap,
-            'red',
-            draw_position - self.view / downscale + (0,3),
-            draw_position - self.view / downscale - (0,3)
-        )
-        pygame.draw.rect(minimap, 'red', view_outline, width=1)
-        
-        #blit minimap onto screen
-        self.screen.blit(minimap,minimap_pos)
-        
-    def check_user_input(self):
+    def check_user_input(self, dt: float) -> None:
+        view = self.viewport.view
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return False
+                self.connection.halt_event.set()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
-                    self.show_minimap = not self.show_minimap
+                    self.minimap.cycle_state()
+                if event.key == pygame.K_t:
+                    self.tooltip.cycle_state()
             elif event.type == pygame.MOUSEWHEEL:
-                self.viewpoint.z += 5 * event.y * self.viewpoint.z * self.dt
-    
-        _mouse = pygame.mouse.get_pressed(num_buttons=3)
-        mouse_rel = pygame.mouse.get_rel()
+                view.zoom(1 + 5 * event.y * dt)
 
-        if _mouse[0]:
-            self.viewpoint.x += mouse_rel[0] * self.viewpoint.z
-            self.viewpoint.y += mouse_rel[1] * self.viewpoint.z
+        mouse_rel = pygame.Vector2(pygame.mouse.get_rel())
+        if pygame.mouse.get_pressed(num_buttons=3)[0]:
+            view.offset += mouse_rel * view.z
 
         keys = pygame.key.get_pressed()
+        pan = 300 * view.z * dt
         if keys[pygame.K_q]:
-            self.viewpoint.z -= 3*self.viewpoint.z*self.dt
+            view.zoom(1 - 3 * dt)
         if keys[pygame.K_e]:
-            self.viewpoint.z += 3*self.viewpoint.z*self.dt
+            view.zoom(1 + 3 * dt)
         if keys[pygame.K_w] or keys[pygame.K_UP]:
-            self.viewpoint.y += 300*self.viewpoint.z*self.dt
+            view.offset.y += pan
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            self.viewpoint.y -= 300*self.viewpoint.z*self.dt
+            view.offset.y -= pan
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            self.viewpoint.x += 300*self.viewpoint.z*self.dt
+            view.offset.x += pan
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            self.viewpoint.x -= 300*self.viewpoint.z*self.dt
+            view.offset.x -= pan
         if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
             self.connection.halt_event.set()
-        self.viewpoint.z = max(0.5,min(10,self.viewpoint.z))
-        self.view = pygame.Vector2(self.viewpoint.x, self.viewpoint.y)
-        return True
-
-    def run(self):
-
-        pygame.init()
-        self.screen = pygame.display.set_mode(self.size)
-        self.clock = pygame.time.Clock()
-
-        try:
-            while True:
-                if self.connection.stop_event.is_set():
-                    break
-
-                if self.viewpoint_is_set and not self.check_user_input():
-                    break
-
-                self.check_connection()
-
-                if not self.viewpoint_is_set and self.initial_view_data:
-                    self.set_initial_viewpoint()
-
-                self.clear()
-                
-                if not self.viewpoint_is_set:
-                    self.draw_loading()
-                else:
-                    self.draw()
-                    self.draw_user_input()
-                    self.draw_crosshair()
-
-                if self.tooltip is not None:
-                    self.draw_tooltip()
-
-                if self.viewpoint_is_set and self.show_minimap:
-                    self.draw_minimap()
-
-                if self.connection.halt_event.is_set():
-                    self.clear()
-                    self.draw_shutdown()
-
-                pygame.display.flip()
-                
-                self.dt = self.clock.tick(60)/1000
-        finally:
-            pygame.quit()
-            self.connection.stop_event.set()
 
 
-def start_visualization(connection, size=None, viewpoint=None):
-    visualization = Visualization(connection=connection, size=size, viewpoint=viewpoint)
-    visualization.run()
+def run_visualization(connection: Communication) -> None:
+    pygame.init()
+    screen = pygame.display.set_mode(Window.size)
+    clock = pygame.time.Clock()
+    dt = 0
+    manager = VisuManager(connection, Viewport(screen))
+    try:
+        while not connection.stop_event.is_set():
+            if manager.is_initialized:
+                manager.check_user_input(dt)
+
+            payload = connection.receive_latest()
+            if payload is not None:
+                manager.sync(payload)
+            if not manager.is_initialized and manager.objects:
+                manager.initialize()
+
+            if manager.is_initialized:
+                manager.draw_scene()
+            if connection.halt_event.is_set():
+                screen.fill("white")
+
+            pygame.display.flip()
+            dt = clock.tick(60) / 1000
+    finally:
+        pygame.quit()
+        connection.stop_event.set()

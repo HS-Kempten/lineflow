@@ -245,8 +245,8 @@ if __name__ == '__main__':
     scrap_factor = 1/n_assemblies
 
     line = ComplexLine(
-        realtime=False,
-        factor=0.05,
+        realtime=True,
+        factor=0.1,
         alternate=False,
         n_assemblies=n_assemblies,
         n_workers=n_workers,
@@ -265,7 +265,7 @@ if __name__ == '__main__':
         get_max_reward=False
         )
 
-    line.run(simulation_end=4000, agent=agent, show_status=True, visualize=False)
+    line.run(simulation_end=4000, agent=agent, show_status=True, visualize=True)
     print("Produced: ", line.get_n_parts_produced())
     print("Scrap: ", line.get_n_scrap_parts())
     print("Reward: ",  line.get_n_parts_produced() - line.get_n_scrap_parts()*scrap_factor)
