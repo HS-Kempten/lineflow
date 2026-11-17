@@ -135,6 +135,10 @@ class Buffer(Connector):
         return data
 
     def _add_visualization_states(self, data:ConnectionData) -> None:
+        # TODO: Add states to data
+        data.state = self.state
+
+        # TODO: Remove these lines
         for k in self.state.states:
             data.__setattr__(k, self.state[k].to_str())
 

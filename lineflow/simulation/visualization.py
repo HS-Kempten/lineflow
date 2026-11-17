@@ -323,6 +323,9 @@ class VisuLineObject(VisuObject):
         self.update(data)
 
     def update(self, data: ConnectionData) -> None:
+
+        if hasattr(data, "states"):
+            self.state = data.state
         self.position = pygame.Vector2(data.position)
 
     def rect(self, viewport: Viewport) -> pygame.Rect:
@@ -431,13 +434,12 @@ class VisuSwitch(VisuStation):
 
     def update(self, data: ConnectionData) -> None:
         super().update(data)
+        self.pos_in, self.pos_out = (pygame.Vector2(pos) for pos in data.pos_in_out)
 
         # TODO: Read states from `data.states`
         # TODO: Here, all possible actions can be read off
         print(data.state["index_buffer_out"].categories)
 
-
-        self.pos_in, self.pos_out = (pygame.Vector2(pos) for pos in data.pos_in_out)
 
     def draw_connections(self, viewport: Viewport) -> None:
         center = viewport.to_screen(self.position)
