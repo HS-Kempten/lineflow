@@ -292,6 +292,15 @@ class Line:
 
             if agent is not None:
                 actions = agent(self.state, self.env)
+
+                print("Before",actions)
+                if visualize:
+                    # TODO: TW: implement policy merge 
+                    actions_visu = self.connection(self.state, self.env)
+                    for key in actions_visu.keys():
+                        actions[key].update(actions_visu[key])
+
+                print("After", actions)
                 self.apply(actions)
 
             if visualize:

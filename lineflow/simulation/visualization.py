@@ -69,6 +69,18 @@ class Communication:
         """
         self.queue_out.cancel_join_thread()
 
+    def __call__(self, state, env):
+        """
+        Statisfy agent API of lineflow
+        """
+
+        data = self.receive_latest()
+
+        if data is not None:
+            return data
+        else:
+            return {}
+
 
 def setup_communication_pair():
     """Returns the line's and the visualization's end of a new channel."""
@@ -419,6 +431,12 @@ class VisuSwitch(VisuStation):
 
     def update(self, data: ConnectionData) -> None:
         super().update(data)
+
+        # TODO: Read states from `data.states`
+        # TODO: Here, all possible actions can be read off
+        print(data.state["index_buffer_out"].categories)
+
+
         self.pos_in, self.pos_out = (pygame.Vector2(pos) for pos in data.pos_in_out)
 
     def draw_connections(self, viewport: Viewport) -> None:
@@ -614,6 +632,7 @@ class VisuManager:
             obj.draw(self.viewport)
 
     def check_user_input(self, dt: float) -> None:
+
         view = self.viewport.view
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -646,6 +665,12 @@ class VisuManager:
             view.offset.x -= pan
         if keys[pygame.K_h] and keys[pygame.K_LSHIFT]:
             self.connection.halt_event.set()
+
+        # TODO: Depending on which objects is hovered/clicked, geerate/use individual mapping and
+        # read user input
+        return_of_visu_objct = {'Switch': {'index_buffer_out': 2}}
+        self.connection.send(return_of_visu_objct )
+
 
 
 def run_visualization(connection: Communication) -> None:
