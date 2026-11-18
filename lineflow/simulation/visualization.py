@@ -208,7 +208,8 @@ class Overlay(VisuObject):
 
 class InteractionWheel(Overlay):
 
-    color = "darkgray"
+    layer = 7
+    color = "blue"
     size = 100
     n_spokes = 0
 
@@ -217,14 +218,22 @@ class InteractionWheel(Overlay):
         self.cycle_state()
         self.position = position
 
+    def draw_number(self, viewport: Viewport, text: str, point: pygame.Vector2) -> None:
+        font = pygame.font.SysFont(None, 24)
+        label = font.render(text, True, "black")
+        viewport.screen.blit(label, label.get_rect(center=point))
+
     def draw(self, viewport: Viewport) -> None:
         if self.state == "on":
-            spokes = [pygame.Vector2(self.size, 0).rotate(-360/self.n_spokes*n) for n in range(self.n_spokes)]
-            pygame.draw.circle(viewport.screen, "white", self.position, self.size)
+            spoke_tips = [pygame.Vector2(self.size, 0).rotate(-360/self.n_spokes*n) for n in range(self.n_spokes)]
+            spoke_bases = [pygame.Vector2(self.size/3, 0).rotate(-360/self.n_spokes*n) for n in range(self.n_spokes)]
+            number_points = [pygame.Vector2(self.size/3*2, 0).rotate(-360/self.n_spokes*(n+0.5)) for n in range(self.n_spokes)]
+            pygame.draw.circle(viewport.screen, "white", self.position, self.size, width=int(self.size/3*2))
             pygame.draw.circle(viewport.screen, self.color, self.position, self.size, width=3)
             pygame.draw.circle(viewport.screen, self.color, self.position, self.size/3, width=3)
-            for spoke in spokes:
-                pygame.draw.line(viewport.screen, self.color, self.position, self.position+spoke, width=3)
+            for n in range(self.n_spokes):
+                pygame.draw.line(viewport.screen, self.color, self.position+spoke_bases[n], self.position+spoke_tips[n], width=3)
+                self.draw_number(viewport, str(n+1), self.position+number_points[n])
 
 
 class MiniMap(Overlay):
@@ -682,11 +691,11 @@ class VisuManager:
                     self.interaction = None
                     self.click_pos = pygame.Vector2(pygame.mouse.get_pos())
                     self.wheel.position = self.click_pos
-                    self.wheel.cycle_state()
                     for obj in sorted(self.objects.values(), key=lambda obj: obj.layer, reverse=True):
                         if obj.is_hovered(self.viewport):
                             self.interaction = obj.interactions()
                             if self.interaction is not None:
+                                self.wheel.cycle_state()
                                 self.wheel.n_spokes = len(self.interaction[2])
                             break
             elif event.type == pygame.MOUSEBUTTONUP:
@@ -694,7 +703,8 @@ class VisuManager:
                     self.action = None
                     self.release_pos = pygame.Vector2(pygame.mouse.get_pos())
                     travel = self.click_pos - self.release_pos
-                    self.wheel.cycle_state()
+                    if self.wheel.state == "on":
+                        self.wheel.cycle_state()
                     self.wheel.n_spokes = 0
                     if travel.magnitude() >= 10 and travel.magnitude() <= 100:
                         if self.interaction is not None:
