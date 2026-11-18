@@ -206,6 +206,26 @@ class Overlay(VisuObject):
     def cycle_state(self) -> None:
         self.state = next(self._cycle)
 
+class InteractionWheel(Overlay):
+
+    color = "darkgray"
+    size = 100
+    n_spokes = 0
+
+    def __init__(self, position):
+        super().__init__()
+        #self.cycle_state()
+        self.position = position
+
+    def draw(self, viewport: Viewport) -> None:
+        spokes = [pygame.Vector2(self.size, 0).rotate(-360/self.n_spokes*n) for n in range(self.n_spokes)]
+        if self.n_spokes > 0:
+            pygame.draw.circle(viewport.screen, "white", self.position, self.size)
+            pygame.draw.circle(viewport.screen, self.color, self.position, self.size, width=1)
+            pygame.draw.circle(viewport.screen, self.color, self.position, 10, width=1)
+        for spoke in spokes:
+            pygame.draw.line(viewport.screen, self.color, self.position, self.position+spoke)
+
 
 class MiniMap(Overlay):
     """Scaled-down drawing of the line objects in the top right corner, with the current view outlined."""
@@ -323,8 +343,7 @@ class VisuLineObject(VisuObject):
         self.update(data)
 
     def update(self, data: ConnectionData) -> None:
-
-        if hasattr(data, "states"):
+        if hasattr(data, "state"):
             self.state = data.state
         self.position = pygame.Vector2(data.position)
 
@@ -340,6 +359,15 @@ class VisuLineObject(VisuObject):
 
     def draw_simple(self, minimap: MiniMap) -> None:
         raise NotImplementedError()
+
+    def interactions(self) -> dict | None:
+        _interactions = None
+        if not hasattr(self, "state"):
+            return _interactions
+        for state_name in self.state.states:
+            if self.state[state_name].is_actionable:
+                _interactions = (self.name, state_name, self.state[state_name].categories)
+        return _interactions
 
 
 class VisuStation(VisuLineObject):
@@ -357,10 +385,12 @@ class VisuStation(VisuLineObject):
 
     def update(self, data: ConnectionData) -> None:
         super().update(data)
-        self.mode = data.mode
-        self.on = data.on
-        self.worker_skill = getattr(data, "worker_skill", None)
-        self.processing_times.append(round(float(data.processing_time), 1))
+        self.mode = data.state["mode"].to_str()
+        self.on = data.state["on"].to_str()
+        self.worker_skill = getattr(data.state, "n_workers", None)
+        if "processing_time" in data.state.to_dict():
+            processing_time = data.state["processing_time"].to_str()
+            self.processing_times.append(round(float(processing_time), 1))
         del self.processing_times[:-self.history_length]
 
     @property
@@ -435,11 +465,6 @@ class VisuSwitch(VisuStation):
     def update(self, data: ConnectionData) -> None:
         super().update(data)
         self.pos_in, self.pos_out = (pygame.Vector2(pos) for pos in data.pos_in_out)
-
-        # TODO: Read states from `data.states`
-        # TODO: Here, all possible actions can be read off
-        print(data.state["index_buffer_out"].categories)
-
 
     def draw_connections(self, viewport: Viewport) -> None:
         center = viewport.to_screen(self.position)
@@ -599,6 +624,7 @@ class VisuManager:
         self.viewport = viewport
         self.objects: dict[str, VisuLineObject] = {}  # shared with the minimap and the tooltip layer
         self.crosshair = Crosshair(viewport.window.center)
+        self.wheel = InteractionWheel(viewport.window.center)
         self.minimap = MiniMap(self.objects)
         self.tooltip = Tooltip(self.objects)
         self.is_initialized = False
@@ -625,7 +651,7 @@ class VisuManager:
     @property
     def drawables(self):
         """All objects of the scene, background first."""
-        objects = [*self.objects.values(), self.crosshair, self.minimap, self.tooltip]
+        objects = [*self.objects.values(), self.crosshair, self.minimap, self.tooltip, self.wheel]
         return sorted(objects, key=lambda obj: obj.layer)
 
     def draw_scene(self) -> None:
@@ -644,6 +670,30 @@ class VisuManager:
                     self.minimap.cycle_state()
                 if event.key == pygame.K_t:
                     self.tooltip.cycle_state()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 3:
+                    self.interaction = None
+                    self.click_pos = pygame.Vector2(pygame.mouse.get_pos())
+                    self.wheel.position = self.click_pos
+                    for obj in sorted(self.objects.values(), key=lambda obj: obj.layer, reverse=True):
+                        if obj.is_hovered(self.viewport):
+                            self.interaction = obj.interactions()
+                            if self.interaction is not None:
+                                self.wheel.n_spokes = len(self.interaction[2])
+                            break
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 3:
+                    self.action = None
+                    self.release_pos = pygame.Vector2(pygame.mouse.get_pos())
+                    self.wheel.n_spokes = 0
+                    travel = self.click_pos - self.release_pos
+                    if travel.magnitude() >= 10 and travel.magnitude() <= 100:
+                        if self.interaction is not None:
+                            categories = self.interaction[2]
+                            frac_angle = 360/len(categories)
+                            choice = int(travel.angle_to((-1, 0))/frac_angle)
+                            self.action = {self.interaction[0]: {self.interaction[1]: choice}}
+                        print(self.action)
             elif event.type == pygame.MOUSEWHEEL:
                 view.zoom(1 + 5 * event.y * dt)
 
@@ -670,8 +720,8 @@ class VisuManager:
 
         # TODO: Depending on which objects is hovered/clicked, geerate/use individual mapping and
         # read user input
-        return_of_visu_objct = {'Switch': {'index_buffer_out': 2}}
-        self.connection.send(return_of_visu_objct )
+        #return_of_visu_objct = {'Switch': {'index_buffer_out': 2}}
+        #self.connection.send(return_of_visu_objct )
 
 
 

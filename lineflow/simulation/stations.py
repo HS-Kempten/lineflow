@@ -108,6 +108,7 @@ class WorkerPool(StationaryObject):
 
 class Station(StationaryObject):
 
+    #visual info is not needed, maybe remove later
     _width = 30
     _height = 30
     _color = 'black'
@@ -178,19 +179,9 @@ class Station(StationaryObject):
             name=self.name,
             position=self.position,
         )
-        self._add_visualization_states(data)
-        self._add_visualization_info(data)
-        if not hasattr(data, 'processing_time'):
-            data.processing_time = self.processing_time
-        return data
-
-    def _add_visualization_states(self, data:ConnectionData) -> None:
-        # TODO: Add states to data
         data.state = self.state
-
-        # TODO: Remove these lines
-        for k in self.state.states:
-            data.__setattr__(k, self.state[k].to_str())
+        self._add_visualization_info(data)
+        return data
 
     def _add_visualization_info(self, data:ConnectionData) -> None:
         if not self.is_automatic:
