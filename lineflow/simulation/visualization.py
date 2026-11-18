@@ -214,17 +214,17 @@ class InteractionWheel(Overlay):
 
     def __init__(self, position):
         super().__init__()
-        #self.cycle_state()
+        self.cycle_state()
         self.position = position
 
     def draw(self, viewport: Viewport) -> None:
-        spokes = [pygame.Vector2(self.size, 0).rotate(-360/self.n_spokes*n) for n in range(self.n_spokes)]
-        if self.n_spokes > 0:
+        if self.state == "on":
+            spokes = [pygame.Vector2(self.size, 0).rotate(-360/self.n_spokes*n) for n in range(self.n_spokes)]
             pygame.draw.circle(viewport.screen, "white", self.position, self.size)
-            pygame.draw.circle(viewport.screen, self.color, self.position, self.size, width=1)
-            pygame.draw.circle(viewport.screen, self.color, self.position, 10, width=1)
-        for spoke in spokes:
-            pygame.draw.line(viewport.screen, self.color, self.position, self.position+spoke)
+            pygame.draw.circle(viewport.screen, self.color, self.position, self.size, width=3)
+            pygame.draw.circle(viewport.screen, self.color, self.position, self.size/3, width=3)
+            for spoke in spokes:
+                pygame.draw.line(viewport.screen, self.color, self.position, self.position+spoke, width=3)
 
 
 class MiniMap(Overlay):
@@ -628,6 +628,7 @@ class VisuManager:
         self.minimap = MiniMap(self.objects)
         self.tooltip = Tooltip(self.objects)
         self.is_initialized = False
+        self.actions = None
 
     def sync(self, payload) -> None:
         """Updates, creates and removes objects so that they match the records the line sent."""
@@ -659,6 +660,10 @@ class VisuManager:
         for obj in self.drawables:
             obj.draw(self.viewport)
 
+    def send_actions(self) -> None:
+        if self.actions is not None:
+            self.connection.send(self.actions)
+
     def check_user_input(self, dt: float) -> None:
 
         view = self.viewport.view
@@ -670,11 +675,14 @@ class VisuManager:
                     self.minimap.cycle_state()
                 if event.key == pygame.K_t:
                     self.tooltip.cycle_state()
+                if event.key == pygame.K_c:
+                    self.actions = None
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 3:
                     self.interaction = None
                     self.click_pos = pygame.Vector2(pygame.mouse.get_pos())
                     self.wheel.position = self.click_pos
+                    self.wheel.cycle_state()
                     for obj in sorted(self.objects.values(), key=lambda obj: obj.layer, reverse=True):
                         if obj.is_hovered(self.viewport):
                             self.interaction = obj.interactions()
@@ -685,15 +693,19 @@ class VisuManager:
                 if event.button == 3:
                     self.action = None
                     self.release_pos = pygame.Vector2(pygame.mouse.get_pos())
-                    self.wheel.n_spokes = 0
                     travel = self.click_pos - self.release_pos
+                    self.wheel.cycle_state()
+                    self.wheel.n_spokes = 0
                     if travel.magnitude() >= 10 and travel.magnitude() <= 100:
                         if self.interaction is not None:
                             categories = self.interaction[2]
                             frac_angle = 360/len(categories)
                             choice = int(travel.angle_to((-1, 0))/frac_angle)
                             self.action = {self.interaction[0]: {self.interaction[1]: choice}}
-                        print(self.action)
+                    if self.actions is None and self.action is not None:
+                        self.actions = self.action
+                    elif self.action is not None:
+                        self.actions.update(self.action)
             elif event.type == pygame.MOUSEWHEEL:
                 view.zoom(1 + 5 * event.y * dt)
 
@@ -744,6 +756,7 @@ def run_visualization(connection: Communication) -> None:
 
             if manager.is_initialized:
                 manager.draw_scene()
+                manager.send_actions()
             if connection.halt_event.is_set():
                 screen.fill("white")
 
